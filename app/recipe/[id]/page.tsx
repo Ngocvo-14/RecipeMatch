@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Recipe, Collection } from '@/types';
-import { getRecipeImageLarge } from '@/lib/recipeImages';
+import { getFoodImageUrl } from '@/lib/foodImage';
 import { formatCookTime } from '@/lib/formatCookTime';
 import Toast, { useToast } from '@/components/Toast';
 
@@ -16,7 +16,8 @@ export default function RecipeDetailPage() {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [imgError, setImgError] = useState(false);
+  const [relatedRecipes, setRelatedRecipes] = useState<Recipe[]>([]);
+  const recipeHistory = useRef<string[]>([]);
   const [generatedSteps, setGeneratedSteps] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -53,7 +54,7 @@ export default function RecipeDetailPage() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showShare]);
 
-  // ── load auth ───────────────────────────────────────────────────────────
+  // ── load auth + favorite status ─────────────────────────────────────────
   useEffect(() => {
     async function init() {
       try {
@@ -63,15 +64,37 @@ export default function RecipeDetailPage() {
           setIsLoggedIn(true);
           setToken(data.token);
           setDisplayName(data.user?.username || data.user?.email?.split('@')[0] || '');
+          // Check favorite status immediately using the fresh token
+          if (id) {
+            const favRes = await fetch('/api/user/favorites', {
+              headers: { Authorization: `Bearer ${data.token}` },
+            });
+            if (favRes.ok) {
+              const favData = await favRes.json();
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const ids = favData.favorites.map((f: any) => {
+                if (!f.recipeId) return null;
+                if (typeof f.recipeId === 'object') return f.recipeId._id?.toString() ?? null;
+                return f.recipeId.toString();
+              }).filter(Boolean);
+              setFavorited(ids.includes(id));
+            }
+          }
         }
       } catch { /* not logged in */ }
     }
     init();
-  }, []);
+  }, [id]);
+
+  // ── scroll to top on recipe change ──────────────────────────────────────
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [id]);
 
   // ── load recipe ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!id) return;
+    setRelatedRecipes([]);
     async function load() {
       try {
         const res = await fetch(`/api/recipes/${id}`);
@@ -87,24 +110,6 @@ export default function RecipeDetailPage() {
     }
     load();
   }, [id]);
-
-  // ── load favorite status ─────────────────────────────────────────────────
-  useEffect(() => {
-    if (!isLoggedIn || !id) return;
-    async function checkFav() {
-      try {
-        const res = await fetch('/api/user/favorites');
-        if (!res.ok) return;
-        const data = await res.json();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const ids = data.favorites.map((f: any) =>
-          typeof f.recipeId === 'object' ? f.recipeId._id?.toString() : f.recipeId?.toString()
-        );
-        setFavorited(ids.includes(id));
-      } catch { /* ignore */ }
-    }
-    checkFav();
-  }, [isLoggedIn, id]);
 
   // ── AI-generated steps for recipes with no real instructions ────────────
   useEffect(() => {
@@ -145,6 +150,21 @@ export default function RecipeDetailPage() {
         .catch((err) => console.error('Failed to generate steps:', err))
         .finally(() => setIsGenerating(false))
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recipe?._id]);
+
+  // ── load related recipes ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (!recipe?.cuisine) return;
+    fetch(`/api/recipes/search?q=${encodeURIComponent(recipe.cuisine)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const others = (data.recipes || [])
+          .filter((r: Recipe) => r._id?.toString() !== recipe._id?.toString())
+          .slice(0, 4);
+        setRelatedRecipes(others);
+      })
+      .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recipe?._id]);
 
@@ -192,6 +212,12 @@ export default function RecipeDetailPage() {
     } else {
       await copyLink();
     }
+  }
+
+  function handleRelatedClick(relatedId: string) {
+    recipeHistory.current.push(id as string);
+    router.push(`/recipe/${relatedId}`, { scroll: false });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function openCollPicker() {
@@ -274,53 +300,75 @@ export default function RecipeDetailPage() {
     );
   }
 
-  const imgUrl = getRecipeImageLarge(recipe.title, recipe.imageUrl);
+  const url = recipe.imageUrl || (recipe as any).image || '';
+  const imgUrl = url && url.startsWith('http') ? url : 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800';
 
   return (
     <div className="min-h-screen bg-[#F8F9FA]">
-      {/* Nav — back + title + username */}
-      <div className="sticky top-0 z-10 bg-white border-b border-[#E8ECEF] px-4 py-3 flex items-center gap-3 shadow-sm">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-2 text-sm font-black transition-colors hover:opacity-80 shrink-0"
-          style={{ color: '#FF6B6B' }}
-        >
-          ← Back to results
-        </button>
-        <span className="text-[#E0E0E0]">·</span>
-        <span className="text-[#999] text-sm font-semibold truncate flex-1">{recipe.title}</span>
-        {isLoggedIn ? (
-          <Link href="/library" className="text-sm font-medium shrink-0 transition-colors" style={{ color: '#444' }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = '#FF6154')}
-            onMouseLeave={(e) => (e.currentTarget.style.color = '#444')}
+      {/* Nav — back | logo centered | username */}
+      <div className="sticky top-0 z-10 bg-white border-b border-[#E8ECEF] px-4 py-2.5 flex items-center shadow-sm">
+        {/* Left — back */}
+        <div className="flex-1 flex items-center">
+          <Link
+            href="/"
+            className="flex items-center gap-2 text-sm font-black hover:opacity-80 transition-opacity cursor-pointer shrink-0"
+            style={{ color: '#FF6B6B' }}
           >
-            {displayName}
+            ← Back to results
           </Link>
-        ) : (
-          <Link href="/" className="text-sm font-medium shrink-0 transition-colors" style={{ color: '#999' }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = '#FF6154')}
-            onMouseLeave={(e) => (e.currentTarget.style.color = '#999')}
-          >
-            Sign in
-          </Link>
-        )}
+        </div>
+
+        {/* Center — RecipeMatch logo */}
+        <Link href="/" className="flex items-center gap-3 group">
+          <div className="relative">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="20" cy="20" r="19" fill="#FFF7ED" stroke="#FED7AA" strokeWidth="1.5"/>
+              <circle cx="20" cy="20" r="15" fill="none" stroke="#FDBA74" strokeWidth="0.5" strokeDasharray="2 3"/>
+              <line x1="13" y1="9" x2="13" y2="14" stroke="#F97316" strokeWidth="2" strokeLinecap="round"/>
+              <line x1="15.5" y1="9" x2="15.5" y2="14" stroke="#F97316" strokeWidth="2" strokeLinecap="round"/>
+              <path d="M13 14 Q14.25 16 14.25 17.5 L14.25 30" stroke="#F97316" strokeWidth="2" strokeLinecap="round"/>
+              <ellipse cx="25" cy="12" rx="2.8" ry="3.5" stroke="#EA580C" strokeWidth="2"/>
+              <line x1="25" y1="15.5" x2="25" y2="30" stroke="#EA580C" strokeWidth="2" strokeLinecap="round"/>
+              <circle cx="31" cy="10" r="2.5" fill="#FCD34D"/>
+              <circle cx="31" cy="10" r="1.2" fill="#F59E0B"/>
+            </svg>
+            <span className="absolute top-1.5 right-1 w-2 h-2 rounded-full bg-yellow-400 opacity-75 animate-ping" />
+          </div>
+          <div className="flex items-baseline gap-0">
+            <span className="text-gray-900 font-extrabold text-xl tracking-tight group-hover:text-gray-700 transition-colors">Recipe</span>
+            <span className="font-extrabold text-xl tracking-tight text-orange-500">Match</span>
+          </div>
+        </Link>
+
+        {/* Right — username or sign in */}
+        <div className="flex-1 flex justify-end">
+          {isLoggedIn ? (
+            <Link href="/library" className="text-sm font-medium text-gray-600 hover:text-orange-500 transition-colors cursor-pointer">
+              {displayName}
+            </Link>
+          ) : (
+            <Link href="/" className="text-sm font-medium text-gray-400 hover:text-orange-500 transition-colors cursor-pointer">
+              Sign in
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Hero photo */}
       <div className="relative h-64 overflow-hidden">
-        {!imgError ? (
-          // eslint-disable-next-line @next/next/no-img-element
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imgUrl}
             alt={recipe.title}
             className="w-full h-full object-cover"
-            onError={() => setImgError(true)}
+            onError={(e) => {
+              const t = e.target as HTMLImageElement;
+              if (!t.dataset.errored) {
+                t.dataset.errored = '1';
+                t.src = getFoodImageUrl(recipe.title);
+              }
+            }}
           />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-br from-orange-100 to-rose-100 flex items-center justify-center text-8xl">
-            🍽️
-          </div>
-        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
 
         {/* Tags bottom-left */}
@@ -633,14 +681,69 @@ export default function RecipeDetailPage() {
           </div>
         </div>
 
+        {/* You Might Also Like */}
+        {relatedRecipes.length > 0 && (
+          <div className="bg-white rounded-3xl border border-[#F0F0F0] p-6 shadow-sm">
+            <h2 className="text-lg font-black text-[#2C2C2C] mb-2">🍴 You Might Also Like</h2>
+            <div className="space-y-0">
+              {relatedRecipes.map((r, i) => {
+                const rUrlRaw = (r as any).imageUrl || (r as any).image || '';
+                const rImg = rUrlRaw && rUrlRaw.startsWith('http') ? rUrlRaw : getFoodImageUrl(r.title || '');
+                return (
+                  <div key={r._id as string}>
+                    {i > 0 && <div className="border-t border-[#F5F5F5]" />}
+                    <button
+                      onClick={() => handleRelatedClick(r._id as string)}
+                      className="w-full flex items-center gap-2.5 py-2 px-2 -mx-2 rounded-xl hover:bg-orange-50 transition-colors cursor-pointer group text-left"
+                    >
+                      <div className="shrink-0 w-12 h-12 rounded-2xl overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={rImg}
+                          alt={r.title}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          onError={(e) => {
+                            const t = e.target as HTMLImageElement;
+                            if (!t.dataset.errored) { t.dataset.errored = '1'; t.src = getFoodImageUrl(r.title); }
+                          }}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-black text-[#2C2C2C] line-clamp-1 group-hover:text-orange-500 transition-colors">{r.title}</p>
+                        <p className="text-xs font-semibold text-[#bbb]">{r.cuisine} · {formatCookTime(r.cookTime)}</p>
+                      </div>
+                      <span className="text-sm font-bold text-[#ccc] group-hover:text-orange-400 transition-colors shrink-0">→</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="text-center pb-8">
-          <button
-            onClick={() => router.back()}
-            className="inline-flex items-center gap-2 text-white font-black px-8 py-3 rounded-full transition-all hover:opacity-90 shadow-md text-sm"
-            style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}
-          >
-            ← Back to My Results
-          </button>
+          {recipeHistory.current.length > 0 ? (
+            <button
+              onClick={() => {
+                const prevId = recipeHistory.current.pop();
+                router.push(`/recipe/${prevId}`, { scroll: false });
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="inline-flex items-center gap-2 text-white font-black px-8 py-3 rounded-full transition-all hover:opacity-90 shadow-md text-sm"
+              style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}
+            >
+              ← Back to Previous Recipe
+            </button>
+          ) : (
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 text-white font-black px-8 py-3 rounded-full transition-all hover:opacity-90 shadow-md text-sm"
+              style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}
+            >
+              ← Back to Results
+            </Link>
+          )}
         </div>
       </div>
 

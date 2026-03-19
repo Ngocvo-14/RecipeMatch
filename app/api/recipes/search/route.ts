@@ -2,6 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Recipe from '@/models/Recipe';
 import { transformMeal } from '@/lib/mealDbTransform';
+import { getFoodImageUrl } from '@/lib/foodImage';
+
+export const dynamic = 'force-dynamic';
+
+function sanitizeImage(recipe: Record<string, unknown>): Record<string, unknown> {
+  const img = (recipe.imageUrl ?? recipe.image) as string | undefined;
+  const bad = !img || img.trim() === '' ||
+    img.includes('picsum') ||
+    img.includes('loremflickr') || img.includes('X-Amz-Signature') ||
+    img.includes('xqwwpy') || img.includes('xoqwpt') || img.includes('ysxwuq');
+  if (!bad) return recipe;
+  const ingredients = ((recipe.ingredients ?? []) as unknown[]).map((i) =>
+    typeof i === 'string' ? i : ((i as Record<string, string>).name ?? ''),
+  );
+  const fixed = getFoodImageUrl(recipe.title as string ?? '', ingredients);
+  return { ...recipe, imageUrl: fixed, image: fixed };
+}
 
 const MEALDB = 'https://www.themealdb.com/api/json/v1/1';
 
@@ -52,7 +69,7 @@ export async function GET(req: NextRequest) {
       seenTitles.add(key);
       return true;
     });
-    const top50 = deduped.slice(0, 50);
+    const top50 = deduped.slice(0, 50).map((r) => sanitizeImage(r as unknown as Record<string, unknown>));
 
     // Fall back to TheMealDB only when we have nothing at all
     if (top50.length > 0) {

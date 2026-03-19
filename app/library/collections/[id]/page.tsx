@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Recipe } from '@/types';
 import { getRecipeImage } from '@/lib/recipeImages';
+import { getFoodImageUrl } from '@/lib/foodImage';
 
 interface CollectionDetail {
   _id: string;
@@ -14,10 +15,22 @@ interface CollectionDetail {
 }
 
 function Img({ src, alt }: { src: string; alt: string }) {
-  const [err, setErr] = useState(false);
-  if (err) return <div className="w-full h-full bg-gradient-to-br from-orange-100 to-rose-100 flex items-center justify-center text-4xl">🍽️</div>;
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt={alt} className="w-full h-full object-cover" onError={() => setErr(true)} loading="lazy" />;
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="w-full h-full object-cover"
+      loading="lazy"
+      onError={(e) => {
+        const t = e.target as HTMLImageElement;
+        if (!t.dataset.errored) {
+          t.dataset.errored = '1';
+          t.src = getFoodImageUrl(alt);
+        }
+      }}
+    />
+  );
 }
 
 export default function CollectionDetailPage() {
@@ -97,10 +110,6 @@ export default function CollectionDetailPage() {
         >
           ← Collections
         </Link>
-        <span className="text-[#E0E0E0]">·</span>
-        <span className="text-[#999] text-sm font-semibold">
-          {collection.emoji} {collection.name}
-        </span>
       </div>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
@@ -128,7 +137,7 @@ export default function CollectionDetailPage() {
               if (!recipe?._id) return null;
               const imgUrl = getRecipeImage(recipe.title, recipe.imageUrl);
               return (
-                <div key={recipe._id} className="recipe-card relative bg-white rounded-3xl overflow-hidden shadow-sm border border-[#F0F0F0] group">
+                <div key={recipe._id} className="recipe-card relative bg-white rounded-3xl overflow-hidden shadow-sm border border-[#F0F0F0] group cursor-pointer">
                   <div className="relative h-36 overflow-hidden">
                     <Img src={imgUrl} alt={recipe.title} />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
@@ -136,7 +145,7 @@ export default function CollectionDetailPage() {
                     {/* Remove button — appears on hover */}
                     <button
                       onClick={(e) => { e.preventDefault(); setRemovingId(recipe._id); }}
-                      className="absolute top-2 right-2 w-7 h-7 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-[#999] hover:text-[#FF6B6B] hover:bg-white transition-all opacity-0 group-hover:opacity-100 shadow-md z-10 font-black text-base leading-none"
+                      className="absolute top-2 right-2 w-7 h-7 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-[#999] hover:text-[#FF6B6B] hover:bg-white transition-all opacity-0 group-hover:opacity-100 shadow-md z-10 font-black text-base leading-none cursor-pointer"
                       title="Remove from collection"
                     >
                       ×
@@ -144,18 +153,18 @@ export default function CollectionDetailPage() {
                   </div>
 
                   <div className="p-4 space-y-2.5">
-                    <Link href={`/recipe/${recipe._id}`} className="block font-black text-[#2C2C2C] text-sm leading-tight line-clamp-2 hover:opacity-80 transition-opacity">
+                    <Link href={`/recipe/${recipe._id}`} className="block font-black text-[#2C2C2C] text-sm leading-tight line-clamp-2 hover:text-orange-500 transition-colors cursor-pointer">
                       {recipe.title}
                     </Link>
                     <div className="flex items-center gap-3 text-xs font-bold text-[#999]">
-                      <span>⏱ {recipe.cookTime}m</span>
+                      <span>⏱ {recipe.cookTime ? `${recipe.cookTime}m` : '~30m'}</span>
                       <span>👤 {recipe.servings}</span>
                       <span>⚡ {recipe.difficulty}</span>
                       {recipe.cuisine && <span>🍴 {recipe.cuisine}</span>}
                     </div>
                     <Link
                       href={`/recipe/${recipe._id}`}
-                      className="block text-center text-xs font-black py-2 rounded-full hover:opacity-90 transition-opacity"
+                      className="block text-center text-xs font-black py-2 rounded-full border border-transparent hover:bg-orange-500 hover:text-white hover:border-orange-500 transition-colors cursor-pointer"
                       style={{ background: '#FFF5F5', color: '#FF6B6B' }}
                     >
                       View Recipe →
@@ -171,13 +180,13 @@ export default function CollectionDetailPage() {
                       <div className="flex gap-2">
                         <button
                           onClick={() => setRemovingId(null)}
-                          className="px-4 py-2 text-sm font-bold text-[#666] bg-[#F5F5F5] rounded-full hover:bg-[#E8ECEF] transition-colors"
+                          className="px-4 py-2 text-sm font-bold text-[#666] bg-[#F5F5F5] rounded-full hover:bg-[#E8ECEF] transition-colors cursor-pointer"
                         >
                           Cancel
                         </button>
                         <button
                           onClick={() => handleRemove(recipe._id)}
-                          className="px-4 py-2 text-sm font-black text-white rounded-full hover:opacity-90 transition-opacity"
+                          className="px-4 py-2 text-sm font-black text-white rounded-full hover:opacity-90 transition-opacity cursor-pointer"
                           style={{ background: '#FF6B6B' }}
                         >
                           Remove

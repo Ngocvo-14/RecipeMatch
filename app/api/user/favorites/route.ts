@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Favorite from '@/models/Favorite';
+import '@/models/Recipe'; // ensure Recipe model is registered for populate
 import { getUserFromRequest } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {

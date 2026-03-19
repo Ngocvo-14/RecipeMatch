@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { MatchedRecipe } from '@/types';
-import { getRecipeImage } from '@/lib/recipeImages';
 import { formatCookTime } from '@/lib/formatCookTime';
 
 interface Props {
@@ -11,57 +10,29 @@ interface Props {
   isFavorited?: boolean;
   onToggleFavorite?: (id: string) => void;
   isLoggedIn?: boolean;
-  onOpenPanel: (recipe: MatchedRecipe) => void;
+  onOpenPanel: (recipe: MatchedRecipe, index: number) => void;
   onNeedAuth: () => void;
 }
 
 const MATCH_CONFIG = {
-  full: { label: 'Ready to Cook', bg: '#F0FBF7', text: '#52C9A0', dot: '#52C9A0' },
-  near: { label: 'Near Match',    bg: '#FFFBEB', text: '#F59E0B', dot: '#F59E0B' },
-  low:  { label: 'Low Match',     bg: '#F9FAFB', text: '#9CA3AF', dot: '#9CA3AF' },
+  full: { label: 'Ready',      badgeClass: 'bg-emerald-500 text-white' },
+  near: { label: 'Near Match', badgeClass: 'bg-amber-400 text-white' },
+  low:  { label: 'Low Match',  badgeClass: 'bg-gray-400 text-white' },
 };
-
-// Gradient palette keyed by cuisine / mealType for the final fallback
-const CUISINE_GRADIENTS: Record<string, string> = {
-  Italian:       'linear-gradient(135deg,#FDE68A,#FCA5A5)',
-  Mexican:       'linear-gradient(135deg,#FDE68A,#86EFAC)',
-  Asian:         'linear-gradient(135deg,#BAE6FD,#C4B5FD)',
-  Chinese:       'linear-gradient(135deg,#FCA5A5,#FBBF24)',
-  Japanese:      'linear-gradient(135deg,#E0F2FE,#FCA5A5)',
-  Korean:        'linear-gradient(135deg,#FEE2E2,#FBBF24)',
-  Indian:        'linear-gradient(135deg,#FED7AA,#FCA5A5)',
-  Thai:          'linear-gradient(135deg,#D9F99D,#FDE68A)',
-  Mediterranean: 'linear-gradient(135deg,#BAE6FD,#6EE7B7)',
-  American:      'linear-gradient(135deg,#DBEAFE,#FCA5A5)',
-  French:        'linear-gradient(135deg,#E0E7FF,#FDE68A)',
-  Breakfast:     'linear-gradient(135deg,#FEF3C7,#FDE68A)',
-  Dessert:       'linear-gradient(135deg,#FCE7F3,#DDD6FE)',
-};
-const DEFAULT_GRADIENT = 'linear-gradient(135deg,#FFE4E6,#FFF7ED)';
-
-function getCuisineGradient(recipe: MatchedRecipe) {
-  return CUISINE_GRADIENTS[recipe.cuisine] || CUISINE_GRADIENTS[recipe.mealType] || DEFAULT_GRADIENT;
-}
 
 export default function RecipeCard({ recipe, recipeIndex = 0, isFavorited = false, onToggleFavorite, isLoggedIn = false, onOpenPanel, onNeedAuth }: Props) {
-  // stage 0 = primary URL, 1 = keyword pool fallback, 2 = gradient
-  const [stage, setStage] = useState<0 | 1 | 2>(0);
+  const [imgFailed, setImgFailed] = useState(false);
 
   const cfg = MATCH_CONFIG[recipe.matchType];
 
-  // Stage 0: real source image if valid, else title+index keyed pool URL
-  const primaryUrl = getRecipeImage(recipe.title, recipe.imageUrl, recipeIndex);
-  // Stage 1: pool lookup with a +4 offset so the fallback slot is always
-  // different (pool has 8 slots, offset = pool_size/2 guarantees a different
-  // entry even when imageUrl is null and both calls would otherwise be identical)
-  const keywordUrl  = getRecipeImage(recipe.title, undefined, recipeIndex + 4);
-
-  // hasFallback is now always true — stage-1 retry is always available
-  const hasFallback = primaryUrl !== keywordUrl;
-
-  function handleImgError() {
-    if (stage === 0 && hasFallback) { setStage(1); return; }
-    setStage(2);
+  function handleImgError(e: React.SyntheticEvent<HTMLImageElement>) {
+    const t = e.target as HTMLImageElement;
+    if (!t.dataset.errored) {
+      t.dataset.errored = '1';
+      t.src = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800';
+      return;
+    }
+    setImgFailed(true);
   }
 
   function handleFav(e: React.MouseEvent) {
@@ -70,98 +41,105 @@ export default function RecipeCard({ recipe, recipeIndex = 0, isFavorited = fals
     onToggleFavorite?.(recipe._id);
   }
 
+  // Progress bar calculation
+  const totalIngredients = recipe.matchedIngredients.length + recipe.missingIngredients.length;
+  const matchPct = totalIngredients > 0 ? recipe.matchedIngredients.length / totalIngredients : 1;
+  const missingToShow = recipe.missingIngredients.slice(0, 3);
+  const missingExtra = recipe.missingIngredients.length - 3;
+
   return (
     <div
-      className="recipe-card bg-white rounded-3xl overflow-hidden shadow-sm border border-[#F0F0F0] cursor-pointer"
-      onClick={() => onOpenPanel(recipe)}
+      className="recipe-card bg-white rounded-3xl overflow-hidden border-0 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer"
+      onClick={() => onOpenPanel(recipe, recipeIndex)}
     >
-      {/* Photo */}
-      <div className="relative h-36 overflow-hidden">
-        {stage < 2 ? (
+      {/* Photo — 16/9 */}
+      <div className="relative aspect-video overflow-hidden cursor-pointer">
+        {!imgFailed ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            key={stage}
-            src={stage === 0 ? primaryUrl : keywordUrl}
+            key={(recipe as any).imageUrl || recipe.title}
+            src={(() => {
+              const url = (recipe as any).imageUrl || (recipe as any).image || '';
+              if (url && url.startsWith('http')) return url;
+              return 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800';
+            })()}
             alt={recipe.title}
             className="w-full h-full object-cover"
             onError={handleImgError}
             loading="lazy"
           />
         ) : (
-          /* Gradient placeholder — cuisine-tinted, no text */
-          <div
-            className="w-full h-full"
-            style={{ background: getCuisineGradient(recipe) }}
-          />
+          <div className="w-full h-full bg-gray-100" />
         )}
 
-        {/* Gradient overlay at bottom */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
-
-        {/* Match badge */}
-        <div className="absolute top-2.5 left-2.5 flex items-center gap-1 px-2 py-1 rounded-full" style={{ background: cfg.bg }}>
-          <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.dot }}></span>
-          <span className="text-xs font-black" style={{ color: cfg.text }}>{cfg.label}</span>
+        {/* Match badge — top left, colored pill */}
+        <div className={`absolute top-3 left-3 text-xs px-2.5 py-1 rounded-full font-semibold ${cfg.badgeClass}`}>
+          {cfg.label}
         </div>
 
-        {/* Favorite */}
+        {/* Favorite — top right */}
         <button
           onClick={handleFav}
-          className="absolute top-2.5 right-2.5 w-8 h-8 bg-white/90 rounded-full flex items-center justify-center shadow-sm hover:scale-110 transition-transform"
+          className="absolute top-3 right-3 bg-white/90 rounded-full p-2 text-gray-300 hover:text-red-400 transition-colors duration-200 shadow-sm"
         >
-          <span className="text-sm">{isFavorited ? '❤️' : '🤍'}</span>
+          <span className="text-sm leading-none">{isFavorited ? '❤️' : '🤍'}</span>
         </button>
 
-        {/* Score */}
-        <div className="absolute bottom-2 right-2.5 bg-white/90 backdrop-blur-sm text-[#2C2C2C] text-xs font-black px-2 py-0.5 rounded-full">
+        {/* Score — bottom right */}
+        <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur text-gray-800 font-bold text-sm px-2.5 py-1 rounded-xl shadow-sm">
           {Math.round(recipe.matchScore * 100)}%
         </div>
       </div>
 
       {/* Body */}
-      <div className="p-4 space-y-2.5">
-        <h3 className="font-black text-[#2C2C2C] text-sm leading-tight line-clamp-2">
+      <div className="p-5">
+        {/* Title */}
+        <h3 className="font-bold text-gray-900 text-lg leading-snug mb-3 line-clamp-2 cursor-pointer hover:text-orange-500 transition-colors">
           {recipe.title}
         </h3>
 
-        {/* Meta */}
-        <div className="flex items-center gap-3 text-xs font-bold text-[#999]">
-          <span>⏱ {formatCookTime(recipe.cookTime)}</span>
-          <span>👤 {recipe.servings}</span>
+        {/* Meta row */}
+        <div className="flex items-center gap-1 text-gray-400 text-xs mb-4 flex-wrap">
+          <span>⏱️ {formatCookTime(recipe.cookTime)}</span>
+          <span className="opacity-40 mx-0.5">·</span>
+          <span>👥 {recipe.servings}</span>
+          <span className="opacity-40 mx-0.5">·</span>
           <span>⚡ {recipe.difficulty}</span>
-          {recipe.estimatedCost && <span className="ml-auto font-black text-[#666]">${recipe.estimatedCost}</span>}
-        </div>
-
-        {/* Ingredients chips */}
-        <div className="space-y-1">
-          {recipe.matchedIngredients.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {recipe.matchedIngredients.slice(0, 4).map((ing, i) => (
-                <span key={`${i}-${ing}`} className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#F0FBF7', color: '#52C9A0' }}>
-                  ✓ {ing}
-                </span>
-              ))}
-              {recipe.matchedIngredients.length > 4 && (
-                <span className="text-xs font-bold text-[#bbb]">+{recipe.matchedIngredients.length - 4}</span>
-              )}
-            </div>
-          )}
-          {recipe.missingIngredients.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {recipe.missingIngredients.map((ing, i) => (
-                <span key={`${i}-${ing}`} className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#FFF5F5', color: '#FF6B6B' }}>
-                  ✗ {ing}
-                </span>
-              ))}
-            </div>
+          {recipe.estimatedCost && (
+            <>
+              <span className="opacity-40 mx-0.5">·</span>
+              <span>💰 ${recipe.estimatedCost}</span>
+            </>
           )}
         </div>
 
-        {/* CTA */}
+        {/* Ingredient progress bar */}
+        {totalIngredients > 0 && (
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-gray-500 font-medium">
+                {recipe.matchedIngredients.length}/{totalIngredients} ingredients matched
+              </span>
+            </div>
+            <div className="bg-gray-100 rounded-full h-1.5 w-full">
+              <div
+                className="bg-orange-400 rounded-full h-1.5 transition-all duration-300"
+                style={{ width: `${Math.round(matchPct * 100)}%` }}
+              />
+            </div>
+            {recipe.missingIngredients.length > 0 && (
+              <p className="text-gray-400 text-xs mt-1.5">
+                Missing: {missingToShow.join(', ')}
+                {missingExtra > 0 && <span className="text-gray-300"> +{missingExtra} more</span>}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* View Recipe button */}
         <button
-          onClick={(e) => { e.stopPropagation(); onOpenPanel(recipe); }}
-          className="block w-full text-center text-xs font-black py-2 rounded-full transition-all hover:opacity-90"
-          style={{ background: '#FFF5F5', color: '#FF6B6B' }}
+          onClick={(e) => { e.stopPropagation(); onOpenPanel(recipe, recipeIndex); }}
+          className="w-full bg-orange-50 hover:bg-orange-500 text-orange-500 hover:text-white border border-orange-200 hover:border-orange-500 rounded-2xl py-2.5 text-sm font-semibold transition-all duration-200"
         >
           View Recipe →
         </button>

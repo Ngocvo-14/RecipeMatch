@@ -2,6 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import connectDB from '@/lib/mongodb';
 import Recipe from '@/models/Recipe';
+import { getFoodImageUrl } from '@/lib/foodImage';
+
+export const dynamic = 'force-dynamic';
+
+function sanitizeImage(recipe: Record<string, unknown>): Record<string, unknown> {
+  const img = (recipe.imageUrl ?? recipe.image) as string | undefined;
+  const bad = !img || img.trim() === '' ||
+    img.includes('picsum') ||
+    img.includes('loremflickr') || img.includes('X-Amz-Signature') ||
+    img.includes('xqwwpy') || img.includes('xoqwpt') || img.includes('ysxwuq');
+  if (!bad) return recipe;
+  const ingredients = ((recipe.ingredients ?? []) as unknown[]).map((i) =>
+    typeof i === 'string' ? i : ((i as Record<string, string>).name ?? ''),
+  );
+  const fixed = getFoodImageUrl(recipe.title as string ?? '', ingredients);
+  return { ...recipe, imageUrl: fixed, image: fixed };
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -54,7 +71,7 @@ export async function GET(
       return NextResponse.json({ error: 'Recipe not found' }, { status: 404 });
     }
 
-    return NextResponse.json(recipe);
+    return NextResponse.json(sanitizeImage(recipe as unknown as Record<string, unknown>));
   } catch (error) {
     console.error('Recipe fetch error:', error);
     return NextResponse.json({ error: 'Failed to fetch recipe' }, { status: 500 });

@@ -59,11 +59,11 @@ export default function Header({ user, onLogin, onRegister, onLogout, onLogoClic
     ? (user.username || user.email.split('@')[0])
     : '';
 
-  const inputClass = 'w-full border border-[#E8ECEF] rounded-2xl px-4 py-3 text-sm text-[#2C2C2C] font-semibold focus:outline-none focus:border-[#FF6B6B] transition-colors placeholder:text-[#bbb] placeholder:font-normal bg-[#F8F9FA]';
+  const inputClass = 'w-full border border-gray-200 rounded-2xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:border-orange-300 transition-colors placeholder:text-gray-400 bg-gray-50';
 
   return (
     <>
-      <header className="h-14 bg-white border-b border-[#E8ECEF] flex items-center px-5 gap-4 shrink-0 shadow-sm">
+      <header className="h-14 bg-white border-b border-gray-100 flex items-center px-5 gap-4 shrink-0">
         {/* Logo */}
         <button
           onClick={() => {
@@ -75,53 +75,46 @@ export default function Header({ user, onLogin, onRegister, onLogout, onLogoClic
             onLogoClick?.();
             router.push('/');
           }}
-          className="flex items-center gap-2 mr-auto"
+          className="flex items-center gap-3 mr-auto group cursor-pointer"
         >
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-lg" style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}>
-            🍳
+          <div className="relative">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="20" cy="20" r="19" fill="#FFF7ED" stroke="#FED7AA" strokeWidth="1.5"/>
+              <circle cx="20" cy="20" r="15" fill="none" stroke="#FDBA74" strokeWidth="0.5" strokeDasharray="2 3"/>
+              <line x1="13" y1="9" x2="13" y2="14" stroke="#F97316" strokeWidth="2" strokeLinecap="round"/>
+              <line x1="15.5" y1="9" x2="15.5" y2="14" stroke="#F97316" strokeWidth="2" strokeLinecap="round"/>
+              <path d="M13 14 Q14.25 16 14.25 17.5 L14.25 30" stroke="#F97316" strokeWidth="2" strokeLinecap="round"/>
+              <ellipse cx="25" cy="12" rx="2.8" ry="3.5" stroke="#EA580C" strokeWidth="2"/>
+              <line x1="25" y1="15.5" x2="25" y2="30" stroke="#EA580C" strokeWidth="2" strokeLinecap="round"/>
+              <circle cx="31" cy="10" r="2.5" fill="#FCD34D"/>
+              <circle cx="31" cy="10" r="1.2" fill="#F59E0B"/>
+            </svg>
+            <span className="absolute top-1.5 right-1 w-2 h-2 rounded-full bg-yellow-400 opacity-75 animate-ping" />
           </div>
-          <span className="font-black text-xl tracking-tight" style={{ color: '#FF6B6B' }}>
-            RecipeMatch
-          </span>
+          <div className="flex items-baseline gap-0">
+            <span className="text-gray-900 font-extrabold text-xl tracking-tight group-hover:text-gray-700 transition-colors">Recipe</span>
+            <span className="font-extrabold text-xl tracking-tight text-orange-500">
+              Match
+            </span>
+          </div>
         </button>
-
-        {/* Search bar — always visible top-right */}
-        <div className="relative flex items-center">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb] pointer-events-none">🔍</span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => onSearchChange?.(e.target.value)}
-            placeholder="Search recipes..."
-            className="pl-9 pr-8 py-2 text-sm font-semibold rounded-full border border-[#E8ECEF] bg-[#F8F9FA] focus:outline-none focus:border-[#FF6B6B] transition-colors w-52"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => onSearchChange?.('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#bbb] hover:text-[#666] font-black text-sm"
-            >×</button>
-          )}
-          {isSearching && !searchQuery && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#FF6B6B', borderTopColor: 'transparent' }} />
-          )}
-        </div>
 
         {user ? (
           <div className="flex items-center gap-4">
-            <Link
-              href="/library"
-              className="text-sm font-bold text-[#666] hover:text-[#FF6154] transition-colors"
-            >
+            <Link href="/library" className="text-sm text-gray-700 hover:text-orange-500 transition-colors cursor-pointer">
               {displayName}
             </Link>
-            <button onClick={onLogout} className="text-sm font-bold text-[#999] hover:text-[#FF6B6B] transition-colors">
-              Sign out
+            <button onClick={onLogout} className="text-sm text-gray-700 hover:text-orange-500 relative group cursor-pointer transition-colors">
+              <span className="relative">
+                Sign out
+                <span className="absolute -bottom-0.5 left-0 w-0 h-0.5 bg-orange-500 group-hover:w-full transition-all duration-200 rounded-full" />
+              </span>
             </button>
           </div>
         ) : (
           <button
             onClick={() => { setIsLogin(true); setShowAuth(true); }}
-            className="text-sm font-black text-white px-5 py-2 rounded-full transition-all hover:opacity-90 shadow-sm"
+            className="text-sm font-bold text-white px-5 py-2 rounded-full transition-all hover:opacity-90 shadow-sm cursor-pointer"
             style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}
           >
             Sign In
@@ -136,27 +129,28 @@ export default function Header({ user, onLogin, onRegister, onLogout, onLogoClic
         >
           <div className="bg-white rounded-3xl p-7 w-full max-w-sm mx-4 shadow-2xl">
             <div className="flex justify-between items-center mb-5">
-              <h2 className="text-xl font-black text-[#2C2C2C]">
+              <h2 className="text-xl font-black text-gray-900">
                 {isLogin ? 'Welcome back! 👋' : 'Join RecipeMatch 🍳'}
               </h2>
               <button
                 onClick={() => setShowAuth(false)}
-                className="text-[#999] hover:text-[#2C2C2C] text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+                className="text-gray-400 hover:text-gray-700 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
               >
                 ×
               </button>
             </div>
 
             {/* Sign In / Register tabs */}
-            <div className="flex bg-[#F8F9FA] rounded-2xl p-1 mb-5">
+            <div className="flex bg-gray-100 rounded-2xl p-1 mb-5">
               {['Sign In', 'Register'].map((label, i) => (
                 <button
                   key={label}
                   onClick={() => switchMode(i === 0)}
-                  className="flex-1 py-2 rounded-xl text-sm font-black transition-all"
-                  style={isLogin === (i === 0)
-                    ? { background: 'white', color: '#2C2C2C', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }
-                    : { color: '#999' }}
+                  className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                    isLogin === (i === 0)
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500'
+                  }`}
                 >
                   {label}
                 </button>
@@ -164,39 +158,14 @@ export default function Header({ user, onLogin, onRegister, onLogout, onLogoClic
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-3">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="Email address"
-                className={inputClass}
-              />
-
-              {/* Username field — only on register */}
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="Email address" className={inputClass} />
               {!isLogin && (
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value.replace(/\s/g, ''))}
-                  placeholder="Username (min 3 chars, no spaces)"
-                  maxLength={20}
-                  className={inputClass}
-                />
+                <input type="text" value={username} onChange={(e) => setUsername(e.target.value.replace(/\s/g, ''))} placeholder="Username (min 3 chars, no spaces)" maxLength={20} className={inputClass} />
               )}
-
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                placeholder="Password (min 6 chars)"
-                className={inputClass}
-              />
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} placeholder="Password (min 6 chars)" className={inputClass} />
 
               {error && (
-                <div className="bg-red-50 text-red-500 text-sm px-4 py-3 rounded-2xl font-semibold border border-red-100">
+                <div className="bg-red-50 text-red-500 text-sm px-4 py-3 rounded-2xl border border-red-100">
                   {error}
                 </div>
               )}
@@ -204,7 +173,7 @@ export default function Header({ user, onLogin, onRegister, onLogout, onLogoClic
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full text-white font-black py-3 rounded-full transition-all disabled:opacity-50 hover:opacity-90 shadow-sm text-sm mt-1"
+                className="w-full text-white font-bold py-3 rounded-full transition-all disabled:opacity-50 hover:opacity-90 shadow-sm text-sm mt-1 cursor-pointer"
                 style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}
               >
                 {loading ? 'Please wait...' : isLogin ? 'Sign In' : 'Create Account'}

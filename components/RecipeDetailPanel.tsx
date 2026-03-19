@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { MatchedRecipe, Collection } from '@/types';
-import { getRecipeImage } from '@/lib/recipeImages';
+import { getFoodImageUrl } from '@/lib/foodImage';
 import { formatCookTime } from '@/lib/formatCookTime';
 
 interface Props {
@@ -21,13 +21,13 @@ interface Props {
   onClose: () => void;
   onSelectRecipe: (recipe: MatchedRecipe) => void;
   onToast?: (msg: string) => void;
+  recipeIndex?: number;
 }
 
 export default function RecipeDetailPanel({
   recipe, relatedRecipes, isFavorited, isLoggedIn, collections = [],
-  onToggleFavorite, onSaveToCollection, onRemoveFromCollection, onCreateCollection, onNeedAuth, onClose, onSelectRecipe, onToast,
+  onToggleFavorite, onSaveToCollection, onRemoveFromCollection, onCreateCollection, onNeedAuth, onClose, onSelectRecipe, onToast, recipeIndex = 0,
 }: Props) {
-  const [imgError, setImgError] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showCollPicker, setShowCollPicker] = useState(false);
   const [newCollName, setNewCollName] = useState('');
@@ -36,8 +36,9 @@ export default function RecipeDetailPanel({
   const [toast, setToast] = useState('');
   const shareRef = useRef<HTMLDivElement>(null);
   const collPickerRef = useRef<HTMLDivElement>(null);
-  // Use offset 2 so the panel's slot is independent of the card's recipeIndex
-  const imgUrl = getRecipeImage(recipe.title, recipe.imageUrl, 2);
+  const ingredientNames = [...recipe.matchedIngredients, ...recipe.missingIngredients];
+  const _imgRaw = (recipe as any).imageUrl || (recipe as any).image || '';
+  const imgUrl = _imgRaw && _imgRaw.startsWith('http') ? _imgRaw : 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800';
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
@@ -159,24 +160,24 @@ export default function RecipeDetailPanel({
       {/* Panel */}
       <div className="panel-slide fixed right-0 top-0 h-full w-full sm:w-[420px] bg-white z-50 overflow-y-auto shadow-2xl">
         {/* Hero photo */}
-        <div className="relative h-52 overflow-hidden">
-          {!imgError ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={imgUrl}
-              alt={recipe.title}
-              className="w-full h-full object-cover"
-              onError={() => setImgError(true)}
-            />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-orange-100 to-rose-100 flex items-center justify-center text-7xl">
-              🍽️
-            </div>
-          )}
+        <div className="relative h-52 overflow-hidden cursor-pointer">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imgUrl}
+            alt={recipe.title}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              const t = e.target as HTMLImageElement;
+              if (!t.dataset.errored) {
+                t.dataset.errored = '1';
+                t.src = getFoodImageUrl(recipe.title);
+              }
+            }}
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
 
           {/* X close */}
-          <button onClick={onClose} className="absolute top-4 left-4 w-9 h-9 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-[#2C2C2C] font-black text-lg hover:bg-white transition-colors shadow-md">
+          <button onClick={onClose} className="absolute top-4 left-4 w-9 h-9 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-[#2C2C2C] font-black text-lg hover:bg-white transition-colors shadow-md cursor-pointer">
             ×
           </button>
 
@@ -184,7 +185,7 @@ export default function RecipeDetailPanel({
           <div ref={shareRef} className="absolute top-4 right-4">
             <button
               onClick={() => setShowShare((v) => !v)}
-              className="w-9 h-9 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-[#666] font-black text-lg shadow-md hover:bg-white transition-colors select-none"
+              className="w-9 h-9 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-[#666] font-black text-lg shadow-md hover:bg-white transition-colors select-none cursor-pointer"
             >
               ···
             </button>
@@ -194,7 +195,7 @@ export default function RecipeDetailPanel({
               <div className="absolute right-0 top-11 w-52 bg-white rounded-2xl shadow-xl border border-[#F0F0F0] overflow-hidden z-50 animate-fadeIn">
                 <button
                   onClick={copyLink}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-[#2C2C2C] hover:bg-[#FFF5F5] transition-colors text-left"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-[#2C2C2C] hover:bg-[#FFF5F5] transition-colors text-left cursor-pointer"
                 >
                   <span className="text-base">🔗</span>
                   <span>Copy Link</span>
@@ -202,7 +203,7 @@ export default function RecipeDetailPanel({
                 <div className="border-t border-[#F5F5F5]" />
                 <button
                   onClick={shareRecipe}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-[#2C2C2C] hover:bg-[#FFF5F5] transition-colors text-left"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-[#2C2C2C] hover:bg-[#FFF5F5] transition-colors text-left cursor-pointer"
                 >
                   <span className="text-base">📤</span>
                   <span>Share</span>
@@ -210,7 +211,7 @@ export default function RecipeDetailPanel({
                 <div className="border-t border-[#F5F5F5]" />
                 <button
                   onClick={saveToCollection}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-[#2C2C2C] hover:bg-[#FFF5F5] transition-colors text-left"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-[#2C2C2C] hover:bg-[#FFF5F5] transition-colors text-left cursor-pointer"
                 >
                   <span className="text-base">📌</span>
                   <span>{isFavorited ? 'Saved ✓' : 'Save to Collection'}</span>
@@ -223,8 +224,12 @@ export default function RecipeDetailPanel({
         <div className="p-5 space-y-4">
           {/* Title + heart */}
           <div className="flex items-start gap-3">
-            <h2 className="flex-1 text-xl font-black text-[#2C2C2C] leading-tight">{recipe.title}</h2>
-            <button onClick={handleFav} className="shrink-0 text-2xl mt-0.5 hover:scale-110 transition-transform">
+            <h2 className="flex-1 text-xl font-black text-[#2C2C2C] leading-tight">
+              <Link href={`/recipe/${recipe._id}`} className="hover:text-orange-500 transition-colors cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                {recipe.title}
+              </Link>
+            </h2>
+            <button onClick={handleFav} className="shrink-0 text-2xl mt-0.5 hover:scale-110 transition-transform cursor-pointer">
               {isFavorited ? '❤️' : '🤍'}
             </button>
           </div>
@@ -289,7 +294,7 @@ export default function RecipeDetailPanel({
             <div ref={collPickerRef} className="rounded-2xl border border-[#E8ECEF] bg-[#FAFAFA] p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-black text-[#2C2C2C] uppercase tracking-wider">📌 Save to Collection</p>
-                <button onClick={() => setShowCollPicker(false)} className="text-[#bbb] hover:text-[#666] font-black text-lg leading-none">×</button>
+                <button onClick={() => setShowCollPicker(false)} className="text-[#bbb] hover:text-[#666] font-black text-lg leading-none cursor-pointer">×</button>
               </div>
 
               {/* Existing collections */}
@@ -305,7 +310,7 @@ export default function RecipeDetailPanel({
                     <button
                       key={col._id}
                       onClick={() => handlePickCollection(col._id, col.name, alreadyIn)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-white hover:border-[#FF6B6B] border transition-all text-left group"
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-white hover:border-[#FF6B6B] border transition-all text-left group cursor-pointer"
                       style={{ borderColor: alreadyIn ? '#52C9A0' : '#F0F0F0' }}
                     >
                       <span className="text-lg">{col.emoji}</span>
@@ -336,7 +341,7 @@ export default function RecipeDetailPanel({
                   <button
                     onClick={handleCreateCollection}
                     disabled={!newCollName.trim() || creatingColl}
-                    className="px-3 py-2 rounded-xl text-sm font-black text-white transition-opacity disabled:opacity-40"
+                    className="px-3 py-2 rounded-xl text-sm font-black text-white transition-opacity disabled:opacity-40 cursor-pointer"
                     style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}
                   >
                     {creatingColl ? '…' : '+ Add'}
@@ -361,34 +366,33 @@ export default function RecipeDetailPanel({
               </h3>
               <div>
                 {relatedRecipes.map((r, i) => {
-                  const rImg = getRecipeImage(r.title, r.imageUrl);
+                  const _rUrl = (r as any).imageUrl || (r as any).image || '';
+                  const rImg = _rUrl && _rUrl.startsWith('http') ? _rUrl : getFoodImageUrl(r.title || '');
                   const rHasAll = r.matchType === 'full';
                   return (
                     <div key={r._id}>
                       {i > 0 && <div className="border-t border-[#F5F5F5]" />}
-                      <div className="flex items-center gap-3 py-3">
-                        <button onClick={() => onSelectRecipe(r)} className="shrink-0 w-14 h-14 rounded-2xl overflow-hidden hover:opacity-90 transition-opacity">
+                      <div className="flex items-center gap-3 py-2 px-2 -mx-2 rounded-xl hover:bg-orange-50 transition-colors cursor-pointer group">
+                        <Link href={`/recipe/${r._id}`} className="shrink-0 w-14 h-14 rounded-2xl overflow-hidden hover:opacity-90 transition-opacity">
                           <RelatedImg src={rImg} alt={r.title} />
-                        </button>
-                        <button onClick={() => onSelectRecipe(r)} className="flex-1 text-left min-w-0">
-                          <p className="text-sm font-black text-[#2C2C2C] line-clamp-1">{r.title}</p>
+                        </Link>
+                        <Link href={`/recipe/${r._id}`} className="flex-1 text-left min-w-0">
+                          <p className="text-sm font-black text-[#2C2C2C] line-clamp-1 group-hover:text-orange-500 transition-colors">{r.title}</p>
                           <p className="text-xs font-semibold text-[#bbb]">recipematch.app</p>
                           <p className="text-xs font-bold mt-0.5" style={{ color: rHasAll ? '#52C9A0' : '#F59E0B' }}>
                             {rHasAll
                               ? `You have all ${r.matchedIngredients.length} ingredients`
                               : `Missing ${r.missingIngredients.length}`}
                           </p>
-                        </button>
-                        <div className="flex flex-col gap-2 shrink-0">
+                        </Link>
+                        <div className="flex flex-col items-center gap-2 shrink-0">
                           <button
                             onClick={(e) => { e.stopPropagation(); if (!isLoggedIn) { onNeedAuth(); return; } onToggleFavorite(r._id); }}
-                            className="text-base hover:scale-110 transition-transform"
+                            className="text-base hover:scale-110 transition-transform cursor-pointer"
                           >
                             🤍
                           </button>
-                          <Link href={`/recipe/${r._id}`} onClick={(e) => e.stopPropagation()} className="text-sm text-[#999] hover:text-[#FF6B6B] transition-colors font-bold">
-                            ↗
-                          </Link>
+                          <span className="text-sm font-bold text-[#ccc] group-hover:text-orange-400 transition-colors">→</span>
                         </div>
                       </div>
                     </div>
@@ -411,8 +415,20 @@ export default function RecipeDetailPanel({
 }
 
 function RelatedImg({ src, alt }: { src: string; alt: string }) {
-  const [err, setErr] = useState(false);
-  if (err) return <div className="w-full h-full bg-gradient-to-br from-orange-100 to-rose-100 flex items-center justify-center text-2xl">🍽️</div>;
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt={alt} className="w-full h-full object-cover" onError={() => setErr(true)} loading="lazy" />;
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="w-full h-full object-cover"
+      loading="lazy"
+      onError={(e) => {
+        const t = e.target as HTMLImageElement;
+        if (!t.dataset.errored) {
+          t.dataset.errored = '1';
+          t.src = getFoodImageUrl(alt);
+        }
+      }}
+    />
+  );
 }

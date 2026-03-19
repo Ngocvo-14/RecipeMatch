@@ -9,7 +9,6 @@ const QUICK = [
   'lemon','banana','carrot','broccoli','cheddar cheese','avocado','shrimp',
 ];
 
-// Words that are cuisines, dish names, or search terms — never valid ingredients
 const NOT_INGREDIENTS = new Set([
   'korean','vietnamese','japanese','chinese','thai','indian',
   'italian','mexican','french','american','greek','mediterranean',
@@ -31,7 +30,6 @@ export default function IngredientInput({ ingredients, onIngredientsChange, onSe
   const [showDropdown, setShowDropdown] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -62,13 +60,7 @@ export default function IngredientInput({ ingredients, onIngredientsChange, onSe
   function add(val: string) {
     const v = val.trim().toLowerCase();
     if (!v) return;
-
-    // Block cuisine/dish-name words — redirect to recipe search instead
-    if (NOT_INGREDIENTS.has(v)) {
-      redirectToRecipeSearch(val.trim());
-      return;
-    }
-
+    if (NOT_INGREDIENTS.has(v)) { redirectToRecipeSearch(val.trim()); return; }
     if (!ingredients.includes(v)) onIngredientsChange([...ingredients, v]);
     setInput('');
     setShowDropdown(false);
@@ -79,13 +71,8 @@ export default function IngredientInput({ ingredients, onIngredientsChange, onSe
   }
 
   function toggleFromDB(name: string) {
-    if (ingredients.includes(name)) {
-      remove(name);
-    } else {
-      onIngredientsChange([...ingredients, name]);
-      setInput('');
-      setShowDropdown(false);
-    }
+    if (ingredients.includes(name)) { remove(name); }
+    else { onIngredientsChange([...ingredients, name]); setInput(''); setShowDropdown(false); }
   }
 
   function toggleQuick(ing: string) {
@@ -96,11 +83,8 @@ export default function IngredientInput({ ingredients, onIngredientsChange, onSe
   function onKey(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
-      if (autocompleteResults.length > 0 && !isNotIngredient) {
-        add(autocompleteResults[0].name);
-      } else {
-        add(input);
-      }
+      if (autocompleteResults.length > 0 && !isNotIngredient) add(autocompleteResults[0].name);
+      else add(input);
     } else if (e.key === 'Backspace' && !input && ingredients.length > 0) {
       remove(ingredients[ingredients.length - 1]);
     } else if (e.key === 'Escape') {
@@ -109,31 +93,26 @@ export default function IngredientInput({ ingredients, onIngredientsChange, onSe
   }
 
   const quickFiltered = QUICK.filter((i) => !input || i.includes(input.toLowerCase()));
-
-  // Determine Add button behavior
   const addButtonIsRedirect = isNotIngredient || (noIngredientMatch && inputLower.length >= 3);
 
   return (
     <div className="space-y-4">
-      {/* Search input with autocomplete */}
+      {/* Search input */}
       <div ref={containerRef} className="relative">
-        <div className="bg-white rounded-2xl border border-[#E8ECEF] px-4 py-3 flex items-center gap-2 focus-within:border-[#FF6B6B] transition-colors shadow-sm">
-          <span className="text-lg">🧅</span>
+        <div className="rounded-2xl bg-white border border-gray-200 shadow-sm px-4 py-3 flex items-center gap-2 focus-within:border-orange-300 transition-colors">
+          <span className="text-gray-400 text-sm shrink-0">🔍</span>
           <input
             type="text"
             value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-              setShowDropdown(e.target.value.length >= 2);
-            }}
+            onChange={(e) => { setInput(e.target.value); setShowDropdown(e.target.value.length >= 2); }}
             onKeyDown={onKey}
-            placeholder="Search ingredients to add..."
-            className="flex-1 text-sm text-[#2C2C2C] font-semibold placeholder:text-[#bbb] placeholder:font-normal outline-none bg-transparent"
+            placeholder="Search ingredients, recipes,..."
+            className="flex-1 text-sm text-gray-700 placeholder:text-gray-400 outline-none bg-transparent"
           />
           {input && (
             <button
               onClick={() => addButtonIsRedirect ? redirectToRecipeSearch(input) : add(input)}
-              className="text-xs font-black text-white px-3 py-1 rounded-full transition-all hover:opacity-90 shrink-0"
+              className="text-xs font-semibold text-white px-3 py-1 rounded-full transition-all hover:opacity-90 shrink-0"
               style={{ background: addButtonIsRedirect ? '#6B8EFF' : '#FF6B6B' }}
             >
               {addButtonIsRedirect ? '🔍 Search' : 'Add'}
@@ -143,23 +122,23 @@ export default function IngredientInput({ ingredients, onIngredientsChange, onSe
 
         {/* Autocomplete dropdown */}
         {showDropdown && autocompleteResults.length > 0 && !isNotIngredient && (
-          <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl border border-[#E8ECEF] shadow-xl z-50 overflow-hidden max-h-[260px] overflow-y-auto">
+          <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl border border-gray-100 shadow-xl z-50 overflow-hidden max-h-[260px] overflow-y-auto">
             {autocompleteResults.map((ing) => {
               const isAdded = ingredients.includes(ing.name);
               return (
                 <button
                   key={ing.name}
                   onClick={() => toggleFromDB(ing.name)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#FFF5F5] transition-colors text-left border-b border-[#F8F9FA] last:border-0"
+                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-orange-50 transition-colors text-left border-b border-gray-50 last:border-0"
                 >
-                  <span className={`text-base shrink-0 leading-none ${isAdded ? 'text-[#FF6B6B]' : 'text-[#52C9A0]'}`}>
+                  <span className={`text-base shrink-0 leading-none ${isAdded ? 'text-orange-400' : 'text-emerald-500'}`}>
                     {isAdded ? '🗑' : '+'}
                   </span>
-                  <span className="flex-1 text-sm font-semibold text-[#2C2C2C] min-w-0">
+                  <span className="flex-1 text-sm font-medium text-gray-700 min-w-0">
                     {ing.name}
-                    {ing.alias && <span className="text-[#bbb] ml-1 font-normal">({ing.alias})</span>}
+                    {ing.alias && <span className="text-gray-400 ml-1 font-normal">({ing.alias})</span>}
                   </span>
-                  <span className={`text-xs font-black shrink-0 ${isAdded ? 'text-[#FF6B6B]' : 'text-[#52C9A0]'}`}>
+                  <span className={`text-xs font-semibold shrink-0 ${isAdded ? 'text-orange-400' : 'text-emerald-500'}`}>
                     {isAdded ? 'remove' : 'add'}
                   </span>
                 </button>
@@ -168,49 +147,49 @@ export default function IngredientInput({ ingredients, onIngredientsChange, onSe
           </div>
         )}
 
-        {/* Recipe-search redirect suggestion — shown when input looks like a dish/cuisine */}
+        {/* Recipe-search redirect suggestion */}
         {showDropdown && (isNotIngredient || noIngredientMatch) && inputLower.length >= 2 && (
-          <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl border border-[#E8ECEF] shadow-xl z-50 overflow-hidden">
+          <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl border border-gray-100 shadow-xl z-50 overflow-hidden">
             {isNotIngredient && (
-              <p className="px-4 pt-3 pb-1 text-xs font-semibold text-[#bbb]">
+              <p className="px-4 pt-3 pb-1 text-xs text-gray-400">
                 &ldquo;{input}&rdquo; is a cuisine or dish name, not an ingredient.
               </p>
             )}
             {!isNotIngredient && noIngredientMatch && (
-              <p className="px-4 pt-3 pb-1 text-xs font-semibold text-[#bbb]">
+              <p className="px-4 pt-3 pb-1 text-xs text-gray-400">
                 No ingredient matches &ldquo;{input}&rdquo;.
               </p>
             )}
             <button
               onClick={() => redirectToRecipeSearch(input)}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#F0F4FF] transition-colors text-left"
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition-colors text-left"
             >
               <span className="text-lg shrink-0">🔍</span>
-              <span className="flex-1 text-sm font-semibold" style={{ color: '#6B8EFF' }}>
+              <span className="flex-1 text-sm font-medium" style={{ color: '#6B8EFF' }}>
                 Search &ldquo;{input}&rdquo; as a recipe name instead
               </span>
-              <span className="text-[#6B8EFF] font-black text-sm">→</span>
+              <span className="font-semibold text-sm" style={{ color: '#6B8EFF' }}>→</span>
             </button>
           </div>
         )}
       </div>
 
-      {/* Added ingredients */}
+      {/* Added ingredients — orange card */}
       {ingredients.length > 0 && (
-        <div className="bg-white rounded-2xl border border-[#E8ECEF] p-3 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-black text-[#2C2C2C] uppercase tracking-wider">
+        <div className="bg-orange-500 rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-white text-xs font-bold tracking-wider uppercase">
               🧺 Your ingredients ({ingredients.length})
             </p>
-            <button onClick={() => onIngredientsChange([])} className="text-xs font-bold text-[#bbb] hover:text-red-400 transition-colors">
+            <button onClick={() => onIngredientsChange([])} className="text-white/70 text-xs hover:text-white transition-colors">
               Clear all
             </button>
           </div>
           <div className="flex flex-wrap gap-1.5">
             {ingredients.map((ing) => (
-              <span key={ing} className="flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full border" style={{ background: '#FFF5F5', borderColor: '#FF6B6B', color: '#FF6B6B' }}>
+              <span key={ing} className="flex items-center gap-1 bg-white/20 text-white text-sm px-3 py-1 rounded-full border border-white/30">
                 {ing}
-                <button onClick={() => remove(ing)} className="hover:opacity-60 font-black leading-none ml-0.5">×</button>
+                <button onClick={() => remove(ing)} className="text-white/70 hover:text-white leading-none ml-0.5 font-medium">×</button>
               </span>
             ))}
           </div>
@@ -219,16 +198,17 @@ export default function IngredientInput({ ingredients, onIngredientsChange, onSe
 
       {/* Quick picks */}
       <div>
-        <p className="text-xs font-black text-[#666] uppercase tracking-wider mb-2">⚡ Quick picks</p>
+        <p className="text-xs font-bold tracking-widest text-gray-400 uppercase mb-2">⚡ Quick picks</p>
         <div className="flex flex-wrap gap-1.5">
           {quickFiltered.map((ing) => (
             <button
               key={ing}
               onClick={() => toggleQuick(ing)}
-              className="text-xs font-bold px-3 py-1.5 rounded-full border transition-all"
-              style={ingredients.includes(ing)
-                ? { background: '#FF6B6B', borderColor: '#FF6B6B', color: 'white' }
-                : { background: 'white', borderColor: '#E8ECEF', color: '#666' }}
+              className={`text-sm py-1.5 px-3 rounded-full border transition-all shadow-sm ${
+                ingredients.includes(ing)
+                  ? 'bg-orange-500 border-orange-500 text-white'
+                  : 'bg-white border-gray-200 text-gray-600 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-600'
+              }`}
             >
               {ing}
             </button>
@@ -236,8 +216,8 @@ export default function IngredientInput({ ingredients, onIngredientsChange, onSe
         </div>
       </div>
 
-      <p className="text-xs font-semibold" style={{ color: '#bbb' }}>
-        Salt, pepper & water always assumed ✓
+      <p className="bg-green-100 text-green-700 text-xs rounded-full px-3 py-1.5 font-medium inline-block">
+        Salt, pepper &amp; water always assumed ✓
       </p>
     </div>
   );

@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import IngredientInput from '@/components/IngredientInput';
 import IngredientCategories from '@/components/IngredientCategories';
-import FilterPanel from '@/components/FilterPanel';
 import RecipeCard from '@/components/RecipeCard';
 import RecipeDetailPanel from '@/components/RecipeDetailPanel';
 import AuthGateModal from '@/components/AuthGateModal';
 import Toast, { useToast } from '@/components/Toast';
+
 import { MatchedRecipe, FilterState, Collection } from '@/types';
 
 interface User { _id: string; email: string; username?: string; createdAt?: string }
@@ -26,7 +26,6 @@ const DEFAULT_FILTERS: FilterState = {
   maxCookTime:9999, equipment:'All', tags:[],
 };
 
-const HERO_EMOJIS = ['🍝','🥗','🍜','🌮','🍳','🍲','🥘','🍕','🥞','🍱','🥙','🫕','🍛','🍔','🥩','🍤','🍚','🥦'];
 
 // ── Smart search engine ───────────────────────────────────────────────────
 
@@ -169,6 +168,91 @@ function recipeSearchScore(rawQuery: string, recipe: MatchedRecipe): number {
   return Math.floor(total / words.length);
 }
 
+// ── Category filter helpers (3-group: meal type, cook time, cuisine) ─────────
+
+/** cookTime is stored as a number (minutes) in the DB — helper kept for safety */
+function parseMinutes(str: string | undefined): number {
+  if (!str) return 999;
+  const hours = str.match(/(\d+)\s*h/i)?.[1];
+  const mins  = str.match(/(\d+)\s*m/i)?.[1];
+  return (parseInt(hours || '0') * 60) + parseInt(mins || '0');
+}
+// suppress unused warning when cookTime is already a number
+void parseMinutes;
+
+function matchesMealType(recipe: MatchedRecipe, mealType: string | null): boolean {
+  if (!mealType) return true;
+  const title = recipe.title.toLowerCase();
+  const tags  = (recipe.tags || []).map((t) => t.toLowerCase());
+  const mt    = (recipe.mealType || '').toLowerCase();
+  switch (mealType) {
+    case 'Quick & Easy': return recipe.cookTime <= 20 || tags.includes('quick') || recipe.difficulty === 'Easy';
+    case 'Snacks':       return tags.some((t) => t.includes('snack')) || mt.includes('snack');
+    case 'Lunch':        return tags.some((t) => t.includes('lunch')) || mt.includes('lunch');
+    case 'Salad':        return title.includes('salad') || tags.includes('salad');
+    case 'Side Dish':    return tags.some((t) => t.includes('side')) || mt.includes('side');
+    case 'Dessert':      return tags.some((t) => t.includes('dessert')) || mt.includes('dessert') ||
+                           ['cake','cookie','chocolate','mousse','pudding'].some((w) => title.includes(w));
+    case 'Dinner':       return tags.some((t) => t.includes('dinner')) || mt.includes('dinner') ||
+                           recipe.difficulty === 'Medium' || recipe.difficulty === 'Hard';
+    case 'Breakfast':    return tags.some((t) => t.includes('breakfast')) || mt.includes('breakfast') ||
+                           ['egg','pancake','waffle','omelette'].some((w) => title.includes(w));
+    case 'Soup':         return ['soup','stew','chowder','broth'].some((w) => title.includes(w)) || tags.includes('soup');
+    default: return true;
+  }
+}
+
+function matchesCookTime(recipe: MatchedRecipe, cookTime: string | null): boolean {
+  if (!cookTime) return true;
+  const m = recipe.cookTime; // already stored as minutes (number)
+  switch (cookTime) {
+    case 'Under 5 min':  return m <= 5;
+    case 'Under 15 min': return m <= 15;
+    case 'Under 30 min': return m <= 30;
+    case 'Under 60 min': return m <= 60;
+    case 'Under 2 hrs':  return m <= 120;
+    default: return true;
+  }
+}
+
+function matchesCuisine(recipe: MatchedRecipe, cuisine: string | null): boolean {
+  if (!cuisine) return true;
+  const rc   = (recipe.cuisine || '').toLowerCase();
+  const tags = (recipe.tags || []).map((t) => t.toLowerCase());
+  const hit  = (kw: string) => rc.includes(kw) || tags.some((t) => t.includes(kw));
+  switch (cuisine) {
+    case 'Asian':    return ['asian','chinese','japanese','korean','thai','vietnamese','indian'].some(hit);
+    case 'American': return hit('american');
+    case 'Italian':  return hit('italian');
+    case 'Indian':   return hit('indian');
+    case 'Thai':     return hit('thai');
+    case 'Korean':   return hit('korean');
+    case 'Chinese':  return hit('chinese');
+    case 'Mexican':  return hit('mexican');
+    case 'French':   return hit('french');
+    default: return true;
+  }
+}
+
+function applyInlineFilters(
+  recipe: MatchedRecipe,
+  mealType: string | null,
+  cookTime: number | null,
+  cuisine: string | null,
+  diet: string | null,
+  tag: string | null,
+): boolean {
+  if (mealType && !matchesMealType(recipe, mealType)) return false;
+  if (cookTime !== null && recipe.cookTime > cookTime) return false;
+  if (cuisine && !matchesCuisine(recipe, cuisine)) return false;
+  if (diet) {
+    const dl = diet.toLowerCase();
+    if (!(recipe.diet || []).some((d) => d.toLowerCase().includes(dl))) return false;
+  }
+  if (tag && !(recipe.tags || []).some((t) => t.toLowerCase() === tag.toLowerCase())) return false;
+  return true;
+}
+
 export default function HomePage() {
   const router = useRouter();
   const [user, setUser]               = useState<User | null>(null);
@@ -181,14 +265,20 @@ export default function HomePage() {
   const [favorites, setFavorites]     = useState<Set<string>>(new Set());
   const [collections, setCollections] = useState<Collection[]>([]);
   const [showLow, setShowLow]         = useState(false);
-  const [sidebarTab, setSidebarTab]   = useState<'ingredients' | 'filters'>('ingredients');
-  const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null);
+const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null);
+  const [selectedRecipeIndex, setSelectedRecipeIndex] = useState(0);
   const [showAuthGate, setShowAuthGate]     = useState(false);
   const [showAllSugg, setShowAllSugg]       = useState(false);
   const [searchQuery, setSearchQuery]       = useState('');
   const [nameSearchResults, setNameSearchResults] = useState<MatchedRecipe[] | null>(null);
   const [nameSearchLoading, setNameSearchLoading] = useState(false);
   const [initialized, setInitialized]      = useState(false);
+  const [selectedMealType, setSelectedMealType] = useState<string | null>(null);
+  const [selectedCookTime, setSelectedCookTime] = useState<number | null>(null);
+  const [selectedCuisine, setSelectedCuisine]   = useState<string | null>(null);
+  const [selectedDiet, setSelectedDiet]         = useState<string | null>(null);
+  const [selectedTag, setSelectedTag]           = useState<string | null>(null);
+  const [openFilter, setOpenFilter]             = useState<string | null>(null);
   const { toasts, addToast } = useToast();
 
   // Init state: sessionStorage (survives back-nav) → URL params → localStorage
@@ -259,7 +349,7 @@ export default function HomePage() {
     try { localStorage.setItem('rm_ingredients', JSON.stringify(ingredients)); } catch { /* ignore */ }
   }, [ingredients, filters, searchQuery, initialized]);
 
-  // Re-hydrate auth state from httpOnly cookie (e.g. after redirect from /login or /signup)
+  // Re-hydrate auth state from httpOnly cookie
   useEffect(() => {
     async function rehydrate() {
       try {
@@ -290,6 +380,13 @@ export default function HomePage() {
     seed();
   }, []);
 
+  // Close inline filter dropdowns when clicking outside
+  useEffect(() => {
+    const close = () => setOpenFilter(null);
+    if (openFilter) document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [openFilter]);
+
   const matchRecipes = useCallback(async () => {
     if (ingredients.length === 0) { setResults(null); return; }
     setLoading(true);
@@ -316,10 +413,12 @@ export default function HomePage() {
     // Clear immediately — don't wait for debounce so stale results vanish right away
     setNameSearchResults([]);
     setNameSearchLoading(true);
+    let cancelled = false;
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(`/api/recipes/search?q=${encodeURIComponent(searchQuery)}`);
         const data = await res.json();
+        if (cancelled) return;
         const converted: MatchedRecipe[] = (data.recipes || []).map((r: MatchedRecipe) => ({
           ...r,
           _id: r._id?.toString() || '',
@@ -330,12 +429,12 @@ export default function HomePage() {
         }));
         setNameSearchResults(converted);
       } catch {
-        setNameSearchResults([]);
+        if (!cancelled) setNameSearchResults([]);
       } finally {
-        setNameSearchLoading(false);
+        if (!cancelled) setNameSearchLoading(false);
       }
     }, 400);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); cancelled = true; };
   }, [searchQuery]);
 
   // Suggested missing ingredients
@@ -442,6 +541,9 @@ export default function HomePage() {
     setFilters(DEFAULT_FILTERS);
     setSearchQuery('');
     setResults(null);
+    setNameSearchResults(null);
+    setNameSearchLoading(false);
+    setSelectedMealType(null); setSelectedCookTime(null); setSelectedCuisine(null); setSelectedDiet(null); setSelectedTag(null);
     try {
       sessionStorage.removeItem('rm_ingredients');
       sessionStorage.removeItem('rm_filters');
@@ -461,13 +563,34 @@ export default function HomePage() {
     } catch { /* ignore */ }
   }
 
+  function handleIngredientsChange(newIngredients: string[]) {
+    setIngredients(newIngredients);
+    if (searchQuery) {
+      setSearchQuery('');
+      setNameSearchResults(null);
+    }
+  }
+
+  function handleSearchChange(q: string) {
+    setSearchQuery(q);
+    if (q.trim()) {
+      if (ingredients.length > 0) setIngredients([]);
+    } else {
+      setNameSearchResults(null);
+      setNameSearchLoading(false);
+      setSelectedMealType(null); setSelectedCookTime(null); setSelectedCuisine(null); setSelectedDiet(null); setSelectedTag(null);
+    }
+  }
+
   function handleSearchByName(query: string) {
     setSearchQuery(query);
+    if (ingredients.length > 0) setIngredients([]);
     addToast(`Searching recipes for "${query}" 🔍`);
   }
 
-  function openRecipe(recipe: MatchedRecipe) {
+  function openRecipe(recipe: MatchedRecipe, index = 0) {
     setSelectedRecipe(recipe);
+    setSelectedRecipeIndex(index);
     // Track history silently (fire-and-forget, cookie auth)
     if (user) {
       fetch('/api/user/history', {
@@ -512,8 +635,29 @@ export default function HomePage() {
       .map(({ r }) => r);
   }, [results, searchQuery]);
 
+  // Apply inline filter bar on top of search-filtered results
+  const hasActiveFilters = selectedMealType !== null || selectedCookTime !== null || selectedCuisine !== null || selectedDiet !== null || selectedTag !== null;
+  const catFilteredFull = useMemo(() =>
+    hasActiveFilters ? filteredFull.filter((r) => applyInlineFilters(r, selectedMealType, selectedCookTime, selectedCuisine, selectedDiet, selectedTag)) : filteredFull,
+    [filteredFull, selectedMealType, selectedCookTime, selectedCuisine, selectedDiet, selectedTag, hasActiveFilters]
+  );
+  const catFilteredNear = useMemo(() =>
+    hasActiveFilters ? filteredNear.filter((r) => applyInlineFilters(r, selectedMealType, selectedCookTime, selectedCuisine, selectedDiet, selectedTag)) : filteredNear,
+    [filteredNear, selectedMealType, selectedCookTime, selectedCuisine, selectedDiet, selectedTag, hasActiveFilters]
+  );
+  const catFilteredLow = useMemo(() =>
+    hasActiveFilters ? filteredLow.filter((r) => applyInlineFilters(r, selectedMealType, selectedCookTime, selectedCuisine, selectedDiet, selectedTag)) : filteredLow,
+    [filteredLow, selectedMealType, selectedCookTime, selectedCuisine, selectedDiet, selectedTag, hasActiveFilters]
+  );
+
+  const filteredNameSearchResults = useMemo(() => {
+    if (!nameSearchResults) return [];
+    if (!hasActiveFilters) return nameSearchResults;
+    return nameSearchResults.filter((r) => applyInlineFilters(r, selectedMealType, selectedCookTime, selectedCuisine, selectedDiet, selectedTag));
+  }, [nameSearchResults, selectedMealType, selectedCookTime, selectedCuisine, selectedDiet, selectedTag, hasActiveFilters]);
+
   function cards(list: MatchedRecipe[]) {
-    // Deduplicate by _id before rendering (defence against any DB-level duplicates)
+    // Deduplicate by _id before rendering
     const deduped = list.filter((r, i, arr) => arr.findIndex((x) => x._id === r._id) === i);
     return deduped.map((r, i) => (
       <RecipeCard key={r._id} recipe={r} recipeIndex={i}
@@ -527,46 +671,37 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden" style={{ background: '#F8F9FA' }}>
-      <Header user={user} onLogin={handleLogin} onRegister={handleRegister} onLogout={handleLogout} onLogoClick={handleLogoClick} searchQuery={searchQuery} onSearchChange={setSearchQuery} isSearching={nameSearchLoading} />
+    <div className="flex flex-col h-screen overflow-hidden font-sans bg-gray-50">
+      <Header user={user} onLogin={handleLogin} onRegister={handleRegister} onLogout={handleLogout} onLogoClick={handleLogoClick} searchQuery={searchQuery} onSearchChange={handleSearchChange} isSearching={nameSearchLoading} />
 
       <div className="flex flex-1 overflow-hidden">
         {/* SIDEBAR */}
-        <aside className="w-72 shrink-0 flex flex-col overflow-hidden border-r border-[#E8ECEF]" style={{ background: '#F8F9FA' }}>
-          {/* Tabs */}
-          <div className="flex border-b border-[#E8ECEF] bg-white shrink-0">
-            {(['ingredients','filters'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setSidebarTab(tab)}
-                className="flex-1 py-3 text-xs font-black uppercase tracking-wider capitalize transition-all"
-                style={sidebarTab === tab
-                  ? { color: '#FF6B6B', borderBottom: '2px solid #FF6B6B' }
-                  : { color: '#bbb' }}
-              >
-                {tab === 'ingredients' ? '🧺 ' : '🎛️ '}{tab}
-              </button>
-            ))}
-          </div>
-
+        <aside className="w-72 shrink-0 flex flex-col overflow-hidden bg-gray-50">
           {/* Sidebar content */}
-          <div className="flex-1 overflow-y-auto sidebar-scroll p-4">
-            {sidebarTab === 'ingredients' ? (
-              <>
-                <p className="text-[10px] font-black text-[#bbb] uppercase tracking-wider mb-2 px-1">Add Ingredients</p>
-                <IngredientInput ingredients={ingredients} onIngredientsChange={setIngredients} onSearchByName={handleSearchByName} />
-                <IngredientCategories ingredients={ingredients} onIngredientsChange={setIngredients} />
-              </>
-            ) : (
-              <FilterPanel filters={filters} onFiltersChange={setFilters} />
+          <div className="flex-1 overflow-y-auto sidebar-scroll px-4 pt-4 pb-4">
+            <IngredientInput ingredients={ingredients} onIngredientsChange={handleIngredientsChange} onSearchByName={handleSearchByName} />
+            {searchQuery.trim() && (
+              <div className="mt-2 mb-3 flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+                <span className="text-xs">🔍</span>
+                <p className="text-xs font-semibold text-blue-500 flex-1">Text search active — ingredients ignored</p>
+                <button
+                  onClick={() => { setSearchQuery(''); setNameSearchResults(null); }}
+                  className="text-xs font-bold text-blue-400 hover:text-blue-600 transition-colors cursor-pointer shrink-0"
+                >
+                  ✕ clear
+                </button>
+              </div>
             )}
+            <div className={searchQuery.trim() ? 'opacity-40 pointer-events-none select-none' : ''}>
+              <IngredientCategories ingredients={ingredients} onIngredientsChange={handleIngredientsChange} />
+            </div>
           </div>
 
           {/* Stats footer */}
           {results && ingredients.length > 0 && cookable > 0 && (
-            <div className="shrink-0 border-t border-[#E8ECEF] bg-white px-4 py-3">
-              <p className="text-sm font-semibold text-[#666]">
-                <span className="text-2xl font-black" style={{ color: '#FF6B6B' }}>{cookable}</span>
+            <div className="shrink-0 border-t border-gray-200 bg-gray-50 px-4 py-3">
+              <p className="text-sm font-semibold text-gray-500">
+                <span className="text-2xl font-black text-orange-500">{cookable}</span>
                 {' '}recipes you can cook
               </p>
             </div>
@@ -574,216 +709,472 @@ export default function HomePage() {
         </aside>
 
         {/* MAIN */}
-        <main className="flex-1 overflow-y-auto flex flex-col" style={{ background: '#F8F9FA' }}>
+        <main className="flex-1 overflow-y-auto flex flex-col bg-gray-50">
           <div className="flex-1 overflow-y-auto flex flex-col">
-          {/* Hero (no ingredients AND no search) */}
+
+          {/* ── HERO — shown before any ingredients or search ── */}
           {ingredients.length === 0 && !searchQuery.trim() && (
-            <div className="flex-1 min-h-0 flex flex-col items-center justify-center relative overflow-hidden" style={{ background: 'linear-gradient(135deg,#FFF5F5 0%,#FFF9F0 50%,#F0FBF7 100%)' }}>
-              {/* Background emojis - static array, no split() to avoid hydration issues */}
-              <div className="absolute inset-0 overflow-hidden opacity-[0.07] select-none pointer-events-none flex flex-wrap gap-8 p-8 text-5xl" aria-hidden="true">
-                {HERO_EMOJIS.map((e, i) => <span key={i}>{e}</span>)}
+            <div className="relative min-h-[80vh] flex flex-col items-center justify-start pt-24 overflow-hidden">
+
+              {/* Floating food ingredient decorations */}
+              <div className="absolute inset-0 pointer-events-none select-none overflow-hidden">
+                <div className="absolute top-8 left-12 text-4xl opacity-15 rotate-[-20deg] animate-bounce" style={{ animationDuration: '3s', animationDelay: '0s' }}>🍅</div>
+                <div className="absolute top-20 left-32 text-2xl opacity-10 rotate-[15deg]" style={{ animation: 'float 4s ease-in-out infinite', animationDelay: '0.5s' }}>🥑</div>
+                <div className="absolute top-4 left-56 text-xl opacity-[0.07] rotate-[-5deg]" style={{ animation: 'float 5s ease-in-out infinite', animationDelay: '1s' }}>🧄</div>
+                <div className="absolute top-6 right-16 text-3xl opacity-15 rotate-[20deg]" style={{ animation: 'float 3.5s ease-in-out infinite', animationDelay: '0.3s' }}>🍋</div>
+                <div className="absolute top-24 right-40 text-2xl opacity-10 rotate-[-12deg]" style={{ animation: 'float 4.5s ease-in-out infinite', animationDelay: '1.2s' }}>🫑</div>
+                <div className="absolute top-10 right-72 text-xl opacity-[0.07]" style={{ animation: 'float 6s ease-in-out infinite', animationDelay: '0.8s' }}>🧅</div>
+                <div className="absolute bottom-16 left-10 text-3xl opacity-15 rotate-[10deg]" style={{ animation: 'float 5s ease-in-out infinite', animationDelay: '1.5s' }}>🥕</div>
+                <div className="absolute bottom-32 left-40 text-2xl opacity-10 rotate-[-18deg]" style={{ animation: 'float 3s ease-in-out infinite', animationDelay: '0.2s' }}>🥦</div>
+                <div className="absolute bottom-12 right-12 text-3xl opacity-15 rotate-[-10deg]" style={{ animation: 'float 4s ease-in-out infinite', animationDelay: '0.9s' }}>🍳</div>
+                <div className="absolute bottom-36 right-44 text-2xl opacity-10 rotate-[22deg]" style={{ animation: 'float 5.5s ease-in-out infinite', animationDelay: '1.8s' }}>🫐</div>
+                <div className="absolute top-1/3 left-8 text-xl opacity-[0.07] rotate-[5deg]" style={{ animation: 'float 4s ease-in-out infinite', animationDelay: '2s' }}>🌿</div>
+                <div className="absolute top-2/3 right-8 text-xl opacity-[0.07] rotate-[-8deg]" style={{ animation: 'float 3.5s ease-in-out infinite', animationDelay: '0.6s' }}>🍄</div>
               </div>
 
-              <div className="relative max-w-xl mx-auto px-6 py-16 text-center">
-                <div className="inline-flex items-center gap-2 text-xs font-black px-4 py-2 rounded-full mb-6 uppercase tracking-wider" style={{ background: '#FFF5F5', color: '#FF6B6B' }}>
-                  <span className="w-2 h-2 rounded-full bg-[#FF6B6B] animate-pulse"></span>
-                  Ingredient-first recipe matching
-                </div>
-                <h1 className="text-4xl sm:text-5xl font-black text-[#2C2C2C] mb-4 leading-tight">
-                  Cook What You{' '}
-                  <span style={{ color: '#FF6B6B' }}>Have</span>
-                  {' '}🍳
-                </h1>
-                <p className="text-[#666] text-lg mb-8 font-semibold max-w-md mx-auto">
-                  Add ingredients from your fridge and instantly find every recipe you can make.
-                </p>
-                <div className="flex flex-wrap justify-center gap-4 text-sm font-bold text-[#666]">
-                  {['Full matches first','Near matches (1-2 missing)','Filter by diet & time'].map((t) => (
-                    <span key={t} className="flex items-center gap-1.5">
-                      <span style={{ color: '#52C9A0' }}>✓</span> {t}
-                    </span>
-                  ))}
-                </div>
-                <p className="mt-6 text-xs font-semibold text-[#bbb]">← Add ingredients in the sidebar to get started</p>
+              {/* Top pill badge */}
+              <div style={{ animation: 'fadeUp 0.5s ease-out both' }}
+                className="mb-8 flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-full px-4 py-1.5">
+                <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+                <span className="text-xs font-semibold text-orange-600 tracking-widest uppercase">Ingredient-First Recipe Matching</span>
               </div>
+
+              {/* Main headline */}
+              <div style={{ animation: 'fadeUp 0.6s ease-out 0.1s both' }} className="text-center px-4 max-w-4xl mx-auto">
+                <h1 className="font-black leading-none tracking-tight mb-6" style={{ fontSize: 'clamp(2.8rem, 6vw, 4.8rem)' }}>
+                  <span className="text-gray-900">Cook what you </span>
+                  <br />
+                  <span
+                    style={{
+                      background: 'linear-gradient(135deg, #F97316 0%, #EA580C 30%, #FB923C 60%, #F97316 100%)',
+                      backgroundSize: '300% auto',
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text',
+                      animation: 'shimmer 3s linear infinite',
+                      display: 'inline-block',
+                      lineHeight: 1.1,
+                    }}
+                  >
+                    actually have
+                  </span>
+                  {" "}
+                  <span style={{ fontSize: 'clamp(2rem, 4vw, 3.5rem)', display: 'inline-block', animation: 'float 3s ease-in-out infinite' }}>🍳</span>
+                </h1>
+
+                {/* Decorative arc */}
+                <div className="flex justify-center mb-5" style={{ animation: 'fadeUp 0.6s ease-out 0.3s both' }}>
+                  <svg width="280" height="16" viewBox="0 0 280 16" fill="none">
+                    <path d="M 8 14 Q 140 0 272 14" stroke="url(#heroGrad)" strokeWidth="3.5" strokeLinecap="round" fill="none"/>
+                    <defs>
+                      <linearGradient id="heroGrad" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#FCD34D" />
+                        <stop offset="40%" stopColor="#F97316" />
+                        <stop offset="100%" stopColor="#EA580C" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                </div>
+
+                <p className="text-gray-500 text-lg leading-relaxed max-w-3xl mx-auto mt-3"
+                  style={{ animation: 'fadeUp 0.6s ease-out 0.2s both' }}>
+                  Tell us what&apos;s in your fridge — we&apos;ll find every recipe you can make <strong className="text-gray-700 font-semibold">right now</strong>.
+                </p>
+              </div>
+
+              {/* Feature pills */}
+              <div className="flex items-center justify-center gap-3 flex-wrap mt-10"
+                style={{ animation: 'fadeUp 0.6s ease-out 0.35s both' }}>
+                {[
+                  { label: 'Full matches first', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', dot: 'bg-emerald-500' },
+                  { label: 'Near matches too', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', dot: 'bg-amber-500' },
+                  { label: 'Filter by diet & time', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', dot: 'bg-orange-500' },
+                ].map((pill) => (
+                  <div key={pill.label}
+                    className={`flex items-center gap-2 ${pill.bg} border ${pill.border} rounded-full px-4 py-2 shadow-sm`}>
+                    <span className={`w-2 h-2 rounded-full ${pill.dot}`} />
+                    <span className={`text-xs font-semibold ${pill.text}`}>{pill.label}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* CTA hint */}
+              <div className="mt-12 flex flex-col items-center gap-2"
+                style={{ animation: 'fadeUp 0.6s ease-out 0.5s both' }}>
+                <p className="text-gray-400 text-sm font-medium">← Pick ingredients from the sidebar to get started</p>
+              </div>
+
             </div>
           )}
 
-          {(ingredients.length > 0 || searchQuery.trim() || loading) && <div className="p-6">
-            {loading && !results && ingredients.length > 0 && !nameSearchResults && (
-              <div className="flex flex-col items-center py-20 gap-3">
-                <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#FF6B6B', borderTopColor: 'transparent' }}></div>
-                <p className="text-sm font-bold text-[#999]">Finding recipes...</p>
-              </div>
-            )}
-
-            {/* ── Name-search results (DB-wide, ignores ingredient matching) ── */}
-            {nameSearchResults !== null && (
-              <div className="space-y-6 max-w-6xl">
-                {/* Header */}
-                {!nameSearchLoading && (
-                  <div className="flex items-center gap-3">
-                    <p className="text-2xl font-black text-[#2C2C2C]">
-                      <span style={{ color: '#FF6B6B' }}>{nameSearchResults.length}</span> recipes found for &ldquo;{searchQuery.trim()}&rdquo;
-                    </p>
-                  </div>
-                )}
-                {/* Label */}
-                {!nameSearchLoading && (
-                  <p className="text-xs font-semibold text-[#aaa]">
-                    Showing recipes matching &ldquo;{searchQuery.trim()}&rdquo;
-                    {' '}— <span className="text-[#666]">all recipes, not filtered by ingredients</span>
-                  </p>
-                )}
-                {nameSearchLoading ? (
-                  <div className="flex flex-col items-center py-20 gap-3">
-                    <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#FF6B6B', borderTopColor: 'transparent' }}></div>
-                    <p className="text-sm font-bold text-[#999]">Searching for &ldquo;{searchQuery}&rdquo;...</p>
-                  </div>
-                ) : nameSearchResults.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {cards(nameSearchResults.filter((r, i, arr) => arr.findIndex((x) => x._id === r._id) === i))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <div className="text-5xl mb-3">🔍</div>
-                    <p className="font-black text-[#2C2C2C]">No recipes found for &ldquo;{searchQuery}&rdquo;</p>
-                    <button onClick={() => setSearchQuery('')} className="mt-3 text-sm font-bold" style={{ color: '#FF6B6B' }}>Clear search</button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {nameSearchResults === null && results && ingredients.length > 0 && (
-              <div className="space-y-8 max-w-6xl">
-                {/* Header row */}
-                <div className="flex items-start justify-between flex-wrap gap-3">
-                  <div className="flex items-center gap-3">
-                    <p className="text-2xl font-black text-[#2C2C2C]">
-                      <span style={{ color: '#FF6B6B' }}>{cookable}</span> recipes you can cook
-                      {results.lowMatches.length > 0 && (
-                        <span className="text-sm font-bold text-[#bbb] ml-2">(+{results.lowMatches.length} more)</span>
-                      )}
-                    </p>
-                    {loading && (
-                      <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#FF6B6B', borderTopColor: 'transparent' }}></div>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-end gap-1.5">
-                    {!user && (
-                      <p className="text-xs font-bold text-[#bbb]">
-                        <button onClick={() => setShowAuthGate(true)} className="font-black" style={{ color: '#FF6B6B' }}>Sign in</button>
-                        {' '}to save favorites
-                      </p>
-                    )}
-                    {searchQuery.trim() && nameSearchResults === null && (
-                      <p className="text-xs font-semibold text-[#aaa]">
-                        Filtering by &ldquo;{searchQuery.trim()}&rdquo; —{' '}
-                        <span className="text-[#666]">
-                          {filteredFull.length + filteredNear.length + filteredLow.length} matches
-                        </span>
-                      </p>
-                    )}
-                  </div>
+          {/* ── RESULTS / SEARCH ── */}
+          {(ingredients.length > 0 || searchQuery.trim() || loading) && (
+            <div className="px-6 py-6">
+              {loading && !results && ingredients.length > 0 && !nameSearchResults && (
+                <div className="flex flex-col items-center py-20 gap-3">
+                  <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#FF6B6B', borderTopColor: 'transparent' }}></div>
+                  <p className="text-sm font-medium text-gray-400">Finding recipes...</p>
                 </div>
+              )}
 
-                {/* "Do you have?" suggestions */}
-                {suggestions.length > 0 && (
-                  <div className="rounded-3xl border border-[#F0F0F0] p-4 bg-white shadow-sm">
-                    <p className="text-xs font-black text-[#2C2C2C] uppercase tracking-wider mb-3">
-                      🤔 Do you have any of these? Adding them unlocks more recipes!
+              {/* Name-search results */}
+              {nameSearchResults !== null && (
+                <div className="space-y-4 max-w-6xl">
+                  {/* Compact inline filter bar */}
+                  <div className="flex items-center gap-2 flex-wrap mb-6 pb-4 border-b border-gray-100">
+                    {/* Meal Type */}
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => setOpenFilter(openFilter === 'meal' ? null : 'meal')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-all cursor-pointer ${selectedMealType ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'}`}>
+                        🍽️ {selectedMealType ?? 'Meal Type'}
+                        <svg className={`w-3 h-3 transition-transform ${openFilter === 'meal' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+                      </button>
+                      {openFilter === 'meal' && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 p-1.5 min-w-[160px]">
+                          {['All','Quick & Easy','Breakfast','Lunch','Dinner','Snacks','Salad','Side Dish','Dessert','Soups & Stews'].map((opt) => (
+                            <button key={opt} onClick={() => { setSelectedMealType(opt === 'All' ? null : opt); setOpenFilter(null); }}
+                              className={`w-full text-left px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors ${(selectedMealType === opt) || (opt === 'All' && !selectedMealType) ? 'bg-orange-500 text-white' : 'text-gray-700 hover:bg-orange-50'}`}>{opt}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* Cook Time */}
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => setOpenFilter(openFilter === 'time' ? null : 'time')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-all cursor-pointer ${selectedCookTime !== null ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'}`}>
+                        ⏱️ {selectedCookTime !== null ? `≤${selectedCookTime}min` : 'Cook Time'}
+                        <svg className={`w-3 h-3 transition-transform ${openFilter === 'time' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+                      </button>
+                      {openFilter === 'time' && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 p-1.5 min-w-[140px]">
+                          {[{label:'Any',value:null},{label:'≤15 min',value:15},{label:'≤30 min',value:30},{label:'≤60 min',value:60},{label:'≤2 hrs',value:120}].map((opt) => (
+                            <button key={opt.label} onClick={() => { setSelectedCookTime(opt.value); setOpenFilter(null); }}
+                              className={`w-full text-left px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors ${selectedCookTime === opt.value ? 'bg-orange-500 text-white' : 'text-gray-700 hover:bg-orange-50'}`}>{opt.label}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* Cuisine */}
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => setOpenFilter(openFilter === 'cuisine' ? null : 'cuisine')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-all cursor-pointer ${selectedCuisine ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'}`}>
+                        🌍 {selectedCuisine ?? 'Cuisine'}
+                        <svg className={`w-3 h-3 transition-transform ${openFilter === 'cuisine' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+                      </button>
+                      {openFilter === 'cuisine' && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 p-1.5 min-w-[160px]">
+                          {['All','Asian','American','Italian','Indian','Thai','Korean','Chinese','Mexican','French','Mediterranean'].map((opt) => (
+                            <button key={opt} onClick={() => { setSelectedCuisine(opt === 'All' ? null : opt); setOpenFilter(null); }}
+                              className={`w-full text-left px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors ${(selectedCuisine === opt) || (opt === 'All' && !selectedCuisine) ? 'bg-orange-500 text-white' : 'text-gray-700 hover:bg-orange-50'}`}>{opt}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* Diet dropdown */}
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => setOpenFilter(openFilter === 'diet' ? null : 'diet')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-all cursor-pointer ${selectedDiet ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'}`}>
+                        🥗 {selectedDiet ?? 'Diet'}
+                        <svg className={`w-3 h-3 transition-transform ${openFilter === 'diet' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+                      </button>
+                      {openFilter === 'diet' && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 p-1.5 min-w-[150px]">
+                          {['All','Vegetarian','Vegan','Gluten Free'].map((opt) => (
+                            <button key={opt} onClick={() => { setSelectedDiet(opt === 'All' ? null : opt); setOpenFilter(null); }}
+                              className={`w-full text-left px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors ${(selectedDiet === opt) || (opt === 'All' && !selectedDiet) ? 'bg-orange-500 text-white' : 'text-gray-700 hover:bg-orange-50'}`}>{opt}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* Quick Tags dropdown */}
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => setOpenFilter(openFilter === 'tags' ? null : 'tags')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-all cursor-pointer ${selectedTag ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'}`}>
+                        ✨ {selectedTag ?? 'Quick Tags'}
+                        <svg className={`w-3 h-3 transition-transform ${openFilter === 'tags' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+                      </button>
+                      {openFilter === 'tags' && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 p-1.5 min-w-[160px]">
+                          {['None','one-pan','microwave','dorm-friendly','student-friendly','budget-friendly'].map((opt) => (
+                            <button key={opt} onClick={() => { setSelectedTag(opt === 'None' ? null : opt); setOpenFilter(null); }}
+                              className={`w-full text-left px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors ${(selectedTag === opt) || (opt === 'None' && !selectedTag) ? 'bg-orange-500 text-white' : 'text-gray-700 hover:bg-orange-50'}`}>{opt}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* Clear filters */}
+                    {(selectedMealType || selectedCookTime !== null || selectedCuisine || selectedDiet || selectedTag) && (
+                      <button onClick={() => { setSelectedMealType(null); setSelectedCookTime(null); setSelectedCuisine(null); setSelectedDiet(null); setSelectedTag(null); }}
+                        className="ml-auto text-xs text-gray-400 hover:text-orange-500 cursor-pointer transition-colors underline">
+                        Clear filters
+                      </button>
+                    )}
+                  </div>
+                  {!nameSearchLoading && (
+                    <div className="flex items-center gap-3">
+                      <p className="text-2xl font-black text-gray-900">
+                        <span className="text-orange-500">{filteredNameSearchResults.length}</span> recipes found for &ldquo;{searchQuery.trim()}&rdquo;
+                      </p>
+                    </div>
+                  )}
+                  {!nameSearchLoading && (
+                    <p className="text-xs text-gray-400">
+                      Showing recipes matching &ldquo;{searchQuery.trim()}&rdquo;
+                      {' '}— <span className="text-gray-500">all recipes, not filtered by ingredients</span>
                     </p>
-                    <div className="flex flex-wrap gap-2">
-                      {visibleSugg.map(({ ing, count }) => (
-                        <button
-                          key={ing}
-                          onClick={() => { if (!ingredients.includes(ing)) setIngredients([...ingredients, ing]); }}
-                          className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border transition-all hover:opacity-90"
-                          style={{ background: '#F8F9FA', borderColor: '#E8ECEF', color: '#444' }}
-                        >
-                          + {ing}
-                          <span className="text-[10px] text-[#bbb]">×{count}</span>
-                        </button>
-                      ))}
-                      {!showAllSugg && suggestions.length > 8 && (
-                        <button
-                          onClick={() => setShowAllSugg(true)}
-                          className="text-xs font-black px-3 py-1.5 rounded-full border border-[#E8ECEF] transition-colors hover:border-[#FF6B6B]"
-                          style={{ color: '#FF6B6B' }}
-                        >
-                          +{suggestions.length - 8} More
-                        </button>
+                  )}
+                  {!nameSearchLoading && ingredients.length > 0 && (
+                    <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
+                      <span className="text-base shrink-0">⚠️</span>
+                      <p className="flex-1 text-xs font-semibold text-amber-700">
+                        Text search active — ingredient filters are paused. Clear search to use ingredients.
+                      </p>
+                      <button
+                        onClick={() => { setSearchQuery(''); setNameSearchResults(null); }}
+                        className="shrink-0 text-xs font-bold text-amber-600 hover:text-amber-800 transition-colors cursor-pointer whitespace-nowrap"
+                      >
+                        ✕ Clear search
+                      </button>
+                    </div>
+                  )}
+                  {nameSearchLoading ? (
+                    <div className="flex flex-col items-center py-20 gap-3">
+                      <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#FF6B6B', borderTopColor: 'transparent' }}></div>
+                      <p className="text-sm font-medium text-gray-400">Searching for &ldquo;{searchQuery}&rdquo;...</p>
+                    </div>
+                  ) : filteredNameSearchResults.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                      {cards(filteredNameSearchResults)}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <div className="text-5xl mb-3">🔍</div>
+                      <p className="font-semibold text-gray-700">No recipes found for &ldquo;{searchQuery}&rdquo;</p>
+                      <button onClick={() => setSearchQuery('')} className="mt-3 text-sm font-medium text-orange-500 hover:text-orange-600 transition-colors duration-200">Clear search</button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Ingredient-matched results */}
+              {nameSearchResults === null && results && ingredients.length > 0 && (
+                <div className="max-w-6xl space-y-2">
+                  {/* Top summary row */}
+                  <div className="flex items-start justify-between flex-wrap gap-3 mb-2">
+                    <div className="flex items-center gap-3">
+                      <p className="text-2xl font-black text-gray-900">
+                        <span className="text-orange-500">{cookable}</span> recipes you can cook
+                        {results.lowMatches.length > 0 && (
+                          <span className="text-sm font-medium text-gray-400 ml-2">(+{results.lowMatches.length} more)</span>
+                        )}
+                      </p>
+                      {loading && (
+                        <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#FF6B6B', borderTopColor: 'transparent' }}></div>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5">
+                      {!user && (
+                        <p className="text-xs text-gray-400">
+                          <button onClick={() => setShowAuthGate(true)} className="font-semibold text-orange-500 cursor-pointer">Sign in</button>
+                          {' '}to save favorites
+                        </p>
+                      )}
+                      {searchQuery.trim() && nameSearchResults === null && (
+                        <p className="text-xs text-gray-400">
+                          Filtering by &ldquo;{searchQuery.trim()}&rdquo; —{' '}
+                          <span className="text-gray-500">{catFilteredFull.length + catFilteredNear.length + catFilteredLow.length} matches</span>
+                        </p>
                       )}
                     </div>
                   </div>
-                )}
 
-                {/* Full matches */}
-                {filteredFull.length > 0 && (
-                  <section>
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#52C9A0' }}></span>
-                      <h3 className="text-sm font-black uppercase tracking-wider" style={{ color: '#52C9A0' }}>
-                        Ready to Cook — {filteredFull.length}
-                      </h3>
+                  {/* Compact inline filter bar */}
+                  <div className="flex items-center gap-2 flex-wrap mb-6 pb-4 border-b border-gray-100">
+                    {/* Meal Type */}
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => setOpenFilter(openFilter === 'meal' ? null : 'meal')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-all cursor-pointer ${selectedMealType ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'}`}>
+                        🍽️ {selectedMealType ?? 'Meal Type'}
+                        <svg className={`w-3 h-3 transition-transform ${openFilter === 'meal' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+                      </button>
+                      {openFilter === 'meal' && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 p-1.5 min-w-[160px]">
+                          {['All','Quick & Easy','Breakfast','Lunch','Dinner','Snacks','Salad','Side Dish','Dessert','Soups & Stews'].map((opt) => (
+                            <button key={opt} onClick={() => { setSelectedMealType(opt === 'All' ? null : opt); setOpenFilter(null); }}
+                              className={`w-full text-left px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors ${(selectedMealType === opt) || (opt === 'All' && !selectedMealType) ? 'bg-orange-500 text-white' : 'text-gray-700 hover:bg-orange-50'}`}>{opt}</button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                      {cards(filteredFull)}
+                    {/* Cook Time */}
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => setOpenFilter(openFilter === 'time' ? null : 'time')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-all cursor-pointer ${selectedCookTime !== null ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'}`}>
+                        ⏱️ {selectedCookTime !== null ? `≤${selectedCookTime}min` : 'Cook Time'}
+                        <svg className={`w-3 h-3 transition-transform ${openFilter === 'time' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+                      </button>
+                      {openFilter === 'time' && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 p-1.5 min-w-[140px]">
+                          {[{label:'Any',value:null},{label:'≤15 min',value:15},{label:'≤30 min',value:30},{label:'≤60 min',value:60},{label:'≤2 hrs',value:120}].map((opt) => (
+                            <button key={opt.label} onClick={() => { setSelectedCookTime(opt.value); setOpenFilter(null); }}
+                              className={`w-full text-left px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors ${selectedCookTime === opt.value ? 'bg-orange-500 text-white' : 'text-gray-700 hover:bg-orange-50'}`}>{opt.label}</button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </section>
-                )}
-
-                {/* Near matches */}
-                {filteredNear.length > 0 && (
-                  <section>
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
-                      <h3 className="text-sm font-black uppercase tracking-wider text-amber-500">
-                        Missing 1–2 Ingredients — {filteredNear.length}
-                      </h3>
+                    {/* Cuisine */}
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => setOpenFilter(openFilter === 'cuisine' ? null : 'cuisine')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-all cursor-pointer ${selectedCuisine ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'}`}>
+                        🌍 {selectedCuisine ?? 'Cuisine'}
+                        <svg className={`w-3 h-3 transition-transform ${openFilter === 'cuisine' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+                      </button>
+                      {openFilter === 'cuisine' && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 p-1.5 min-w-[160px]">
+                          {['All','Asian','American','Italian','Indian','Thai','Korean','Chinese','Mexican','French','Mediterranean'].map((opt) => (
+                            <button key={opt} onClick={() => { setSelectedCuisine(opt === 'All' ? null : opt); setOpenFilter(null); }}
+                              className={`w-full text-left px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors ${(selectedCuisine === opt) || (opt === 'All' && !selectedCuisine) ? 'bg-orange-500 text-white' : 'text-gray-700 hover:bg-orange-50'}`}>{opt}</button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                      {cards(filteredNear)}
+                    {/* Diet dropdown */}
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => setOpenFilter(openFilter === 'diet' ? null : 'diet')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-all cursor-pointer ${selectedDiet ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'}`}>
+                        🥗 {selectedDiet ?? 'Diet'}
+                        <svg className={`w-3 h-3 transition-transform ${openFilter === 'diet' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+                      </button>
+                      {openFilter === 'diet' && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 p-1.5 min-w-[150px]">
+                          {['All','Vegetarian','Vegan','Gluten Free'].map((opt) => (
+                            <button key={opt} onClick={() => { setSelectedDiet(opt === 'All' ? null : opt); setOpenFilter(null); }}
+                              className={`w-full text-left px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors ${(selectedDiet === opt) || (opt === 'All' && !selectedDiet) ? 'bg-orange-500 text-white' : 'text-gray-700 hover:bg-orange-50'}`}>{opt}</button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </section>
-                )}
-
-                {/* Low matches */}
-                {filteredLow.length > 0 && (
-                  <section>
-                    <button onClick={() => setShowLow(!showLow)} className="flex items-center gap-2 mb-4 group">
-                      <span className="w-2.5 h-2.5 rounded-full bg-gray-300"></span>
-                      <h3 className="text-sm font-black uppercase tracking-wider text-gray-400 group-hover:text-gray-500 transition-colors">
-                        Missing 3+ Ingredients — {filteredLow.length}
-                      </h3>
-                      <span className="text-gray-400 text-xs">{showLow ? '▲' : '▼'}</span>
-                    </button>
-                    {showLow && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {cards(filteredLow)}
-                      </div>
+                    {/* Quick Tags dropdown */}
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => setOpenFilter(openFilter === 'tags' ? null : 'tags')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-all cursor-pointer ${selectedTag ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'}`}>
+                        ✨ {selectedTag ?? 'Quick Tags'}
+                        <svg className={`w-3 h-3 transition-transform ${openFilter === 'tags' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+                      </button>
+                      {openFilter === 'tags' && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 p-1.5 min-w-[160px]">
+                          {['None','one-pan','microwave','dorm-friendly','student-friendly','budget-friendly'].map((opt) => (
+                            <button key={opt} onClick={() => { setSelectedTag(opt === 'None' ? null : opt); setOpenFilter(null); }}
+                              className={`w-full text-left px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors ${(selectedTag === opt) || (opt === 'None' && !selectedTag) ? 'bg-orange-500 text-white' : 'text-gray-700 hover:bg-orange-50'}`}>{opt}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* Clear filters */}
+                    {(selectedMealType || selectedCookTime !== null || selectedCuisine || selectedDiet || selectedTag) && (
+                      <button onClick={() => { setSelectedMealType(null); setSelectedCookTime(null); setSelectedCuisine(null); setSelectedDiet(null); setSelectedTag(null); }}
+                        className="ml-auto text-xs text-gray-400 hover:text-orange-500 cursor-pointer transition-colors underline">
+                        Clear filters
+                      </button>
                     )}
-                  </section>
-                )}
-
-                {searchQuery && filteredFull.length === 0 && filteredNear.length === 0 && filteredLow.length === 0 && (
-                  <div className="text-center py-12">
-                    <div className="text-5xl mb-3">🔍</div>
-                    <p className="font-black text-[#2C2C2C]">No recipes match &ldquo;{searchQuery}&rdquo;</p>
-                    <button onClick={() => setSearchQuery('')} className="mt-3 text-sm font-bold" style={{ color: '#FF6B6B' }}>Clear search</button>
                   </div>
-                )}
 
-                {cookable === 0 && results.lowMatches.length === 0 && !searchQuery && (
-                  <div className="text-center py-20">
-                    <div className="text-6xl mb-4">🔍</div>
-                    <h3 className="text-lg font-black text-[#2C2C2C] mb-2">No matches found</h3>
-                    <p className="text-sm font-semibold text-[#999]">Try adding more ingredients or adjusting your filters.</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>}
+                  {/* "Do you have?" suggestions */}
+                  {suggestions.length > 0 && (
+                    <div className="rounded-2xl p-4 bg-white shadow-sm border border-gray-100">
+                      <p className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">
+                        🤔 Do you have any of these? Adding them unlocks more recipes!
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {visibleSugg.map(({ ing, count }) => (
+                          <button
+                            key={ing}
+                            onClick={() => { if (!ingredients.includes(ing)) setIngredients([...ingredients, ing]); }}
+                            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border border-gray-200 bg-gray-50 text-gray-600 hover:border-orange-300 hover:text-orange-500 transition-colors duration-200 cursor-pointer"
+                          >
+                            + {ing}
+                            <span className="text-[10px] text-gray-400">×{count}</span>
+                          </button>
+                        ))}
+                        {!showAllSugg && suggestions.length > 8 && (
+                          <button
+                            onClick={() => setShowAllSugg(true)}
+                            className="text-xs font-medium px-3 py-1.5 rounded-full border border-gray-200 text-orange-500 hover:border-orange-300 transition-colors duration-200 cursor-pointer"
+                          >
+                            +{suggestions.length - 8} More
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Ready to Cook ── */}
+                  {catFilteredFull.length > 0 && (
+                    <section>
+                      <div className="flex items-center gap-3 mb-6 mt-8">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0"></span>
+                        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Ready to Cook</h3>
+                        <span className="bg-gray-100 text-gray-500 text-xs font-bold px-2.5 py-1 rounded-full">{catFilteredFull.length}</span>
+                        <div className="flex-1 h-px bg-gray-100"></div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                        {cards(catFilteredFull)}
+                      </div>
+                    </section>
+                  )}
+
+                  {/* ── Near matches ── */}
+                  {catFilteredNear.length > 0 && (
+                    <section>
+                      <div className="flex items-center gap-3 mb-6 mt-8">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0"></span>
+                        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Missing 1–2 Ingredients</h3>
+                        <span className="bg-gray-100 text-gray-500 text-xs font-bold px-2.5 py-1 rounded-full">{catFilteredNear.length}</span>
+                        <div className="flex-1 h-px bg-gray-100"></div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                        {cards(catFilteredNear)}
+                      </div>
+                    </section>
+                  )}
+
+                  {/* ── Low matches (collapsible) ── */}
+                  {catFilteredLow.length > 0 && (
+                    <section>
+                      <button onClick={() => setShowLow(!showLow)} className="flex items-center gap-3 mb-6 mt-8 w-full group cursor-pointer">
+                        <span className="w-2.5 h-2.5 rounded-full bg-gray-300 shrink-0"></span>
+                        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Missing 3+ Ingredients</h3>
+                        <span className="bg-gray-100 text-gray-500 text-xs font-bold px-2.5 py-1 rounded-full">{catFilteredLow.length}</span>
+                        <div className="flex-1 h-px bg-gray-100"></div>
+                        <span className="text-gray-400 text-xs shrink-0">{showLow ? '▲' : '▼'}</span>
+                      </button>
+                      {showLow && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                          {cards(catFilteredLow)}
+                        </div>
+                      )}
+                    </section>
+                  )}
+
+                  {searchQuery && catFilteredFull.length === 0 && catFilteredNear.length === 0 && catFilteredLow.length === 0 && (
+                    <div className="text-center py-12">
+                      <div className="text-5xl mb-3">🔍</div>
+                      <p className="font-semibold text-gray-700">No recipes match &ldquo;{searchQuery}&rdquo;</p>
+                      <button onClick={() => setSearchQuery('')} className="mt-3 text-sm font-medium text-orange-500 hover:text-orange-600 transition-colors duration-200">Clear search</button>
+                    </div>
+                  )}
+
+                  {cookable === 0 && results.lowMatches.length === 0 && !searchQuery && (
+                    <div className="text-center py-20">
+                      <div className="text-6xl mb-4">🔍</div>
+                      <h3 className="text-lg font-semibold text-gray-700 mb-2">No matches found</h3>
+                      <p className="text-sm text-gray-400">Try adding more ingredients or adjusting your filters.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           </div>
         </main>
       </div>
@@ -791,6 +1182,7 @@ export default function HomePage() {
       {selectedRecipe && (
         <RecipeDetailPanel
           recipe={selectedRecipe}
+          recipeIndex={selectedRecipeIndex}
           relatedRecipes={related}
           isFavorited={favorites.has(selectedRecipe._id)}
           isLoggedIn={!!user}

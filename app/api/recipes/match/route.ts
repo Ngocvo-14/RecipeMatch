@@ -2,6 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Recipe from '@/models/Recipe';
 import { matchRecipes } from '@/lib/matchAlgorithm';
+import { getFoodImageUrl } from '@/lib/foodImage';
+
+export const dynamic = 'force-dynamic';
+
+function sanitizeImage(recipe: Record<string, unknown>): Record<string, unknown> {
+  const img = (recipe.imageUrl ?? recipe.image) as string | undefined;
+  const bad = !img || img.trim() === '' ||
+    img.includes('picsum') ||
+    img.includes('loremflickr') || img.includes('X-Amz-Signature') ||
+    img.includes('xqwwpy') || img.includes('xoqwpt') || img.includes('ysxwuq');
+  if (!bad) return recipe;
+  const ingredients = ((recipe.ingredients ?? []) as unknown[]).map((i) =>
+    typeof i === 'string' ? i : ((i as Record<string, string>).name ?? ''),
+  );
+  const fixed = getFoodImageUrl(recipe.title as string ?? '', ingredients);
+  return { ...recipe, imageUrl: fixed, image: fixed };
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -54,11 +71,12 @@ export async function POST(req: NextRequest) {
     const matched = matchRecipes(ingredients, recipes as Parameters<typeof matchRecipes>[1]);
 
     // Deduplicate by title — catches same recipe inserted twice with different _ids
-    const deduped = [...new Map(matched.map((r) => [r.title.toLowerCase(), r])).values()];
+    const deduped = [...new Map(matched.map((r) => [r.title.toLowerCase(), r])).values()]
+      .map((r) => sanitizeImage(r as unknown as Record<string, unknown>));
 
-    const fullMatches = deduped.filter((r) => r.matchType === 'full');
-    const nearMatches = deduped.filter((r) => r.matchType === 'near');
-    const lowMatches = deduped.filter((r) => r.matchType === 'low');
+    const fullMatches = deduped.filter((r) => (r as { matchType: string }).matchType === 'full');
+    const nearMatches = deduped.filter((r) => (r as { matchType: string }).matchType === 'near');
+    const lowMatches = deduped.filter((r) => (r as { matchType: string }).matchType === 'low');
 
     return NextResponse.json({
       total: matched.length,
