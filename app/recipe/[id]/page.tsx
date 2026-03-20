@@ -309,13 +309,13 @@ export default function RecipeDetailPage() {
       <div className="sticky top-0 z-10 bg-white border-b border-[#E8ECEF] px-4 py-2.5 flex items-center shadow-sm">
         {/* Left — back */}
         <div className="flex-1 flex items-center">
-          <Link
-            href="/"
+          <button
+            onClick={() => router.back()}
             className="flex items-center gap-2 text-sm font-black hover:opacity-80 transition-opacity cursor-pointer shrink-0"
             style={{ color: '#FF6B6B' }}
           >
-            ← Back to results
-          </Link>
+            ← Go Back
+          </button>
         </div>
 
         {/* Center — RecipeMatch logo */}
@@ -355,7 +355,7 @@ export default function RecipeDetailPage() {
       </div>
 
       {/* Hero photo */}
-      <div className="relative h-64 overflow-hidden">
+      <div className="relative h-48 md:h-64 overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imgUrl}
@@ -428,7 +428,7 @@ export default function RecipeDetailPage() {
         {/* Title card */}
         <div className="bg-white rounded-3xl border border-[#F0F0F0] p-6 shadow-sm">
           <div className="flex items-start gap-3 mb-2">
-            <h1 className="flex-1 text-3xl font-black text-[#2C2C2C] leading-tight">{recipe.title}</h1>
+            <h1 className="flex-1 text-2xl md:text-3xl font-black text-[#2C2C2C] leading-tight">{recipe.title}</h1>
             {/* Single heart button */}
             <button
               onClick={toggleFavorite}
@@ -736,13 +736,13 @@ export default function RecipeDetailPage() {
               ← Back to Previous Recipe
             </button>
           ) : (
-            <Link
-              href="/"
+            <button
+              onClick={() => router.back()}
               className="inline-flex items-center gap-2 text-white font-black px-8 py-3 rounded-full transition-all hover:opacity-90 shadow-md text-sm"
               style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}
             >
-              ← Back to Results
-            </Link>
+              ← Go Back
+            </button>
           )}
         </div>
       </div>

@@ -281,6 +281,18 @@ const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null)
   const [openFilter, setOpenFilter]             = useState<string | null>(null);
   const { toasts, addToast } = useToast();
 
+  // ── Mobile 3-step flow ────────────────────────────────────────────────────
+  const [mobileStep, setMobileStep] = useState<'hero' | 'ingredients' | 'results'>('hero');
+  const [isMobile, setIsMobile] = useState(false);
+  const [showMobileFilter, setShowMobileFilter] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
   // Init state: sessionStorage (survives back-nav) → URL params → localStorage
   useEffect(() => {
     try {
@@ -676,7 +688,15 @@ const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null)
 
       <div className="flex flex-1 overflow-hidden">
         {/* SIDEBAR */}
-        <aside className="w-72 shrink-0 flex flex-col overflow-hidden bg-gray-50">
+        <aside className={`shrink-0 flex flex-col overflow-hidden bg-gray-50 ${isMobile ? (mobileStep === 'ingredients' ? 'w-full' : 'hidden') : 'w-72'}`}>
+          {/* Mobile ingredient step top bar */}
+          {isMobile && (
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white shrink-0">
+              <button onClick={() => setMobileStep('hero')} className="text-sm font-semibold cursor-pointer" style={{ color: '#FF6B6B' }}>← Back</button>
+              <span className="font-black text-gray-800 text-sm">Pick Ingredients</span>
+              <button onClick={() => setMobileStep('results')} className="text-sm font-bold text-white px-3 py-1 rounded-full cursor-pointer" style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}>Done ✓</button>
+            </div>
+          )}
           {/* Sidebar content */}
           <div className="flex-1 overflow-y-auto sidebar-scroll px-4 pt-4 pb-4">
             <IngredientInput ingredients={ingredients} onIngredientsChange={handleIngredientsChange} onSearchByName={handleSearchByName} />
@@ -697,8 +717,8 @@ const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null)
             </div>
           </div>
 
-          {/* Stats footer */}
-          {results && ingredients.length > 0 && cookable > 0 && (
+          {/* Stats footer (desktop only) */}
+          {!isMobile && results && ingredients.length > 0 && cookable > 0 && (
             <div className="shrink-0 border-t border-gray-200 bg-gray-50 px-4 py-3">
               <p className="text-sm font-semibold text-gray-500">
                 <span className="text-2xl font-black text-orange-500">{cookable}</span>
@@ -706,10 +726,35 @@ const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null)
               </p>
             </div>
           )}
+          {/* Mobile find recipes sticky bar */}
+          {isMobile && (
+            <div className="shrink-0 border-t border-gray-200 bg-white px-4 py-3 flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-500">
+                {ingredients.length > 0 ? `${ingredients.length} ingredient${ingredients.length !== 1 ? 's' : ''} selected` : 'No ingredients yet'}
+              </span>
+              <button
+                onClick={() => setMobileStep('results')}
+                className="text-sm font-bold text-white px-5 py-2 rounded-full cursor-pointer"
+                style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}
+              >
+                {ingredients.length > 0 ? 'Find Recipes →' : 'Skip →'}
+              </button>
+            </div>
+          )}
         </aside>
 
         {/* MAIN */}
-        <main className="flex-1 overflow-y-auto flex flex-col bg-gray-50">
+        <main className={`overflow-y-auto flex flex-col bg-gray-50 ${isMobile ? (mobileStep === 'ingredients' ? 'hidden' : 'flex-1 w-full') : 'flex-1'}`}>
+          {/* Mobile results top bar */}
+          {isMobile && mobileStep === 'results' && (
+            <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white shrink-0">
+              <button onClick={() => setMobileStep('ingredients')} className="text-sm font-semibold cursor-pointer" style={{ color: '#FF6B6B' }}>← Ingredients</button>
+              <span className="text-sm font-black text-gray-800">
+                {loading ? 'Finding...' : `${cookable} recipe${cookable !== 1 ? 's' : ''} found`}
+              </span>
+              <button onClick={() => setShowMobileFilter(true)} className="text-lg cursor-pointer">🎛</button>
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto flex flex-col">
 
           {/* ── HERO — shown before any ingredients or search ── */}
@@ -799,9 +844,24 @@ const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null)
               </div>
 
               {/* CTA hint */}
-              <div className="mt-12 flex flex-col items-center gap-2"
+              <div className="mt-12 flex flex-col items-center gap-3"
                 style={{ animation: 'fadeUp 0.6s ease-out 0.5s both' }}>
-                <p className="text-gray-400 text-sm font-medium">← Pick ingredients from the sidebar to get started</p>
+                {/* Desktop hint */}
+                <p className="hidden md:block text-gray-400 text-sm font-medium">← Pick ingredients from the sidebar to get started</p>
+                {/* Mobile CTA */}
+                <button
+                  className="md:hidden flex items-center gap-2 text-white font-bold px-8 py-3 rounded-full shadow-lg text-sm cursor-pointer"
+                  style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}
+                  onClick={() => setMobileStep('ingredients')}
+                >
+                  🥕 Pick Ingredients →
+                </button>
+                <button
+                  className="md:hidden text-xs text-gray-400 hover:text-orange-500 transition-colors cursor-pointer"
+                  onClick={() => setMobileStep('results')}
+                >
+                  or browse all recipes
+                </button>
               </div>
 
             </div>
@@ -809,7 +869,7 @@ const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null)
 
           {/* ── RESULTS / SEARCH ── */}
           {(ingredients.length > 0 || searchQuery.trim() || loading) && (
-            <div className="px-6 py-6">
+            <div className="px-3 md:px-6 py-4 md:py-6">
               {loading && !results && ingredients.length > 0 && !nameSearchResults && (
                 <div className="flex flex-col items-center py-20 gap-3">
                   <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#FF6B6B', borderTopColor: 'transparent' }}></div>
@@ -1178,6 +1238,77 @@ const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null)
           </div>
         </main>
       </div>
+
+      {/* Mobile filter bottom sheet */}
+      {showMobileFilter && isMobile && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setShowMobileFilter(false)} />
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl p-5">
+            <div className="flex justify-center mb-3"><div className="w-10 h-1 bg-gray-300 rounded-full" /></div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-black text-gray-800">Filters</h3>
+              <button onClick={() => setShowMobileFilter(false)} className="text-gray-400 text-xl cursor-pointer">✕</button>
+            </div>
+            <div className="space-y-4 overflow-y-auto max-h-[55vh]">
+              <div>
+                <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Meal Type</p>
+                <div className="flex flex-wrap gap-2">
+                  {['All','Quick & Easy','Breakfast','Lunch','Dinner','Dessert','Snacks'].map((opt) => (
+                    <button key={opt} onClick={() => setSelectedMealType(opt === 'All' ? null : opt)}
+                      className={`text-xs px-3 py-1.5 rounded-full border cursor-pointer ${selectedMealType === opt || (opt === 'All' && !selectedMealType) ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200'}`}>
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Cook Time</p>
+                <div className="flex flex-wrap gap-2">
+                  {[{label:'Any',value:null},{label:'≤15 min',value:15},{label:'≤30 min',value:30},{label:'≤60 min',value:60}].map((opt) => (
+                    <button key={opt.label} onClick={() => setSelectedCookTime(opt.value)}
+                      className={`text-xs px-3 py-1.5 rounded-full border cursor-pointer ${selectedCookTime === opt.value ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200'}`}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Cuisine</p>
+                <div className="flex flex-wrap gap-2">
+                  {['All','Asian','American','Italian','Indian','Mexican','French'].map((opt) => (
+                    <button key={opt} onClick={() => setSelectedCuisine(opt === 'All' ? null : opt)}
+                      className={`text-xs px-3 py-1.5 rounded-full border cursor-pointer ${selectedCuisine === opt || (opt === 'All' && !selectedCuisine) ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200'}`}>
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Diet</p>
+                <div className="flex flex-wrap gap-2">
+                  {['All','Vegetarian','Vegan','Gluten Free'].map((opt) => (
+                    <button key={opt} onClick={() => setSelectedDiet(opt === 'All' ? null : opt)}
+                      className={`text-xs px-3 py-1.5 rounded-full border cursor-pointer ${selectedDiet === opt || (opt === 'All' && !selectedDiet) ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200'}`}>
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {(selectedMealType || selectedCookTime !== null || selectedCuisine || selectedDiet) && (
+              <button onClick={() => { setSelectedMealType(null); setSelectedCookTime(null); setSelectedCuisine(null); setSelectedDiet(null); }}
+                className="mt-3 text-xs text-gray-400 hover:text-orange-500 cursor-pointer underline">
+                Clear all filters
+              </button>
+            )}
+            <button onClick={() => setShowMobileFilter(false)}
+              className="mt-4 w-full py-3 rounded-full text-white font-bold text-sm cursor-pointer"
+              style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}>
+              Apply Filters
+            </button>
+          </div>
+        </>
+      )}
 
       {selectedRecipe && (
         <RecipeDetailPanel

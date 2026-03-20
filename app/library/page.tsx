@@ -268,12 +268,13 @@ function HistRow({ entry, onRemove }: { entry: HistoryEntry; onRemove: () => voi
 interface NavProps { user: { username?: string; email: string } | null; onLogout: () => void }
 
 function LibraryNav({ user, onLogout }: NavProps) {
+  const router = useRouter();
   return (
     <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between sticky top-0 z-20">
       {/* Left — back */}
-      <Link href="/" className="text-sm font-black hover:opacity-80 transition-opacity cursor-pointer" style={{ color: '#FF6B6B' }}>
-        ← Back to results
-      </Link>
+      <button onClick={() => router.back()} className="text-sm font-black hover:opacity-80 transition-opacity cursor-pointer" style={{ color: '#FF6B6B' }}>
+        ← Go Back
+      </button>
 
       {/* Center — logo */}
       <Link href="/" className="flex items-center gap-3 group">
@@ -593,7 +594,7 @@ function LibraryInner() {
         <div className="max-w-4xl mx-auto">
 
           {/* Top row: avatar + info + edit button */}
-          <div className="flex items-center gap-6 mb-8">
+          <div className="flex items-center gap-4 mb-6 md:gap-6 md:mb-8">
             {/* Avatar */}
             <div className="relative flex-shrink-0">
               <div
@@ -632,8 +633,8 @@ function LibraryInner() {
       </div>
 
       {/* ── Sticky Tab bar ───────────────────────────────────────────────── */}
-      <div className="bg-white border-b border-gray-100 px-6 sm:px-8 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto flex gap-1">
+      <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto flex gap-1 overflow-x-auto px-4 sm:px-8 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -645,7 +646,7 @@ function LibraryInner() {
               }`}
             >
               <span>{t.icon}</span>
-              <span>{t.label}</span>
+              <span className="hidden sm:inline">{t.label}</span>
               {typeof t.count === 'number' && t.count > 0 && (
                 <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
                   tab === t.id ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-400'
@@ -678,7 +679,7 @@ function LibraryInner() {
               <>
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h2 className="text-2xl font-black text-gray-900">Saved Recipes</h2>
+                    <h2 className="text-2xl font-black text-gray-900">My Favorite Recipes</h2>
                     <p className="text-gray-400 text-sm mt-1">{favorites.length} recipe{favorites.length !== 1 ? 's' : ''} saved</p>
                   </div>
                 </div>

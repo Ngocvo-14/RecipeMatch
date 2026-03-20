@@ -100,21 +100,26 @@ export default function Header({ user, onLogin, onRegister, onLogout, onLogoClic
         </button>
 
         {user ? (
-          <div className="flex items-center gap-4">
-            <Link href="/library" className="text-sm text-gray-700 hover:text-orange-500 transition-colors cursor-pointer">
+          <div className="flex items-center gap-3">
+            {/* Desktop: show full name + sign out */}
+            <Link href="/library" className="hidden sm:block text-sm text-gray-700 hover:text-orange-500 transition-colors cursor-pointer">
               {displayName}
             </Link>
-            <button onClick={onLogout} className="text-sm text-gray-700 hover:text-orange-500 relative group cursor-pointer transition-colors">
+            <button onClick={onLogout} className="hidden sm:block text-sm text-gray-700 hover:text-orange-500 relative group cursor-pointer transition-colors">
               <span className="relative">
                 Sign out
                 <span className="absolute -bottom-0.5 left-0 w-0 h-0.5 bg-orange-500 group-hover:w-full transition-all duration-200 rounded-full" />
               </span>
             </button>
+            {/* Mobile: avatar initial */}
+            <Link href="/library" className="sm:hidden w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-sm font-black text-orange-600 cursor-pointer">
+              {displayName.charAt(0).toUpperCase()}
+            </Link>
           </div>
         ) : (
           <button
             onClick={() => { setIsLogin(true); setShowAuth(true); }}
-            className="text-sm font-bold text-white px-5 py-2 rounded-full transition-all hover:opacity-90 shadow-sm cursor-pointer"
+            className="text-sm font-bold text-white px-4 py-2 sm:px-5 rounded-full transition-all hover:opacity-90 shadow-sm cursor-pointer"
             style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}
           >
             Sign In
