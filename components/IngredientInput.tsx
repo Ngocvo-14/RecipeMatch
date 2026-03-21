@@ -23,9 +23,12 @@ interface Props {
   ingredients: string[];
   onIngredientsChange: (ingredients: string[]) => void;
   onSearchByName?: (query: string) => void;
+  onSearchSubmit?: () => void;
+  searchActive?: boolean;
+  onClearSearch?: () => void;
 }
 
-export default function IngredientInput({ ingredients, onIngredientsChange, onSearchByName }: Props) {
+export default function IngredientInput({ ingredients, onIngredientsChange, onSearchByName, onSearchSubmit, searchActive, onClearSearch }: Props) {
   const [input, setInput] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -55,6 +58,7 @@ export default function IngredientInput({ ingredients, onIngredientsChange, onSe
     onSearchByName?.(val.trim());
     setInput('');
     setShowDropdown(false);
+    onSearchSubmit?.();
   }
 
   function add(val: string) {
@@ -85,6 +89,7 @@ export default function IngredientInput({ ingredients, onIngredientsChange, onSe
       e.preventDefault();
       if (autocompleteResults.length > 0 && !isNotIngredient) add(autocompleteResults[0].name);
       else add(input);
+      if (e.key === 'Enter') onSearchSubmit?.();
     } else if (e.key === 'Backspace' && !input && ingredients.length > 0) {
       remove(ingredients[ingredients.length - 1]);
     } else if (e.key === 'Escape') {
@@ -109,15 +114,6 @@ export default function IngredientInput({ ingredients, onIngredientsChange, onSe
             placeholder="Search ingredients, recipes,..."
             className="flex-1 text-sm text-gray-700 placeholder:text-gray-400 outline-none bg-transparent"
           />
-          {input && (
-            <button
-              onClick={() => addButtonIsRedirect ? redirectToRecipeSearch(input) : add(input)}
-              className="text-xs font-semibold text-white px-3 py-1 rounded-full transition-all hover:opacity-90 shrink-0"
-              style={{ background: addButtonIsRedirect ? '#6B8EFF' : '#FF6B6B' }}
-            >
-              {addButtonIsRedirect ? '🔍 Search' : 'Add'}
-            </button>
-          )}
         </div>
 
         {/* Autocomplete dropdown */}
@@ -173,6 +169,20 @@ export default function IngredientInput({ ingredients, onIngredientsChange, onSe
           </div>
         )}
       </div>
+
+      {/* Text search active banner */}
+      {searchActive && (
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+          <span className="text-xs">🔍</span>
+          <p className="text-xs font-semibold text-blue-500 flex-1">Text search active — ingredients ignored</p>
+          <button
+            onClick={onClearSearch}
+            className="text-xs font-bold text-blue-400 hover:text-blue-600 transition-colors cursor-pointer shrink-0"
+          >
+            ✕ clear
+          </button>
+        </div>
+      )}
 
       {/* Added ingredients — orange card */}
       {ingredients.length > 0 && (

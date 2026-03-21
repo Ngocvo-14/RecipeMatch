@@ -270,14 +270,14 @@ interface NavProps { user: { username?: string; email: string } | null; onLogout
 function LibraryNav({ user, onLogout }: NavProps) {
   const router = useRouter();
   return (
-    <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between sticky top-0 z-20">
+    <div className="bg-white border-b border-gray-100 px-6 py-4 grid grid-cols-3 items-center sticky top-0 z-20">
       {/* Left — back */}
-      <button onClick={() => router.back()} className="text-sm font-black hover:opacity-80 transition-opacity cursor-pointer" style={{ color: '#FF6B6B' }}>
-        ← Go Back
+      <button onClick={() => router.back()} className="justify-self-start flex items-center gap-1 text-sm font-black hover:opacity-80 transition-opacity cursor-pointer" style={{ color: '#FF6B6B' }}>
+        <span>←</span><span className="hidden md:inline"> Go Back</span>
       </button>
 
       {/* Center — logo */}
-      <Link href="/" className="flex items-center gap-3 group">
+      <Link href="/" className="justify-self-center flex items-center gap-3 group">
         <div className="relative">
           <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
             <circle cx="20" cy="20" r="19" fill="#FFF7ED" stroke="#FED7AA" strokeWidth="1.5"/>
@@ -292,21 +292,23 @@ function LibraryNav({ user, onLogout }: NavProps) {
           </svg>
           <span className="absolute top-1.5 right-1 w-2 h-2 rounded-full bg-yellow-400 opacity-75 animate-ping" />
         </div>
-        <div className="flex items-baseline gap-0">
+        <div className="hidden md:flex items-baseline gap-0">
           <span className="text-gray-900 font-extrabold text-xl tracking-tight group-hover:text-gray-700 transition-colors">Recipe</span>
           <span className="font-extrabold text-xl tracking-tight text-orange-500">Match</span>
         </div>
       </Link>
 
       {/* Right — username + sign out, or sign in */}
-      {user ? (
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-gray-700">{user.username || user.email.split('@')[0]}</span>
-          <button onClick={onLogout} className="text-sm text-gray-500 hover:text-gray-700 transition-colors cursor-pointer">Sign out</button>
-        </div>
-      ) : (
-        <Link href="/" className="text-sm text-gray-500 hover:text-gray-700 transition-colors cursor-pointer">Sign In</Link>
-      )}
+      <div className="justify-self-end flex items-center gap-3">
+        {user ? (
+          <>
+            <span className="text-sm font-medium text-gray-700">{user.username || user.email.split('@')[0]}</span>
+            <button onClick={onLogout} className="hidden md:block text-sm text-gray-500 hover:text-gray-700 transition-colors cursor-pointer">Sign out</button>
+          </>
+        ) : (
+          <Link href="/" className="text-sm text-gray-500 hover:text-gray-700 transition-colors cursor-pointer">Sign In</Link>
+        )}
+      </div>
     </div>
   );
 }

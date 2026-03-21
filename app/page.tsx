@@ -694,24 +694,12 @@ const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null)
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white shrink-0">
               <button onClick={() => setMobileStep('hero')} className="text-sm font-semibold cursor-pointer" style={{ color: '#FF6B6B' }}>← Back</button>
               <span className="font-black text-gray-800 text-sm">Pick Ingredients</span>
-              <button onClick={() => setMobileStep('results')} className="text-sm font-bold text-white px-3 py-1 rounded-full cursor-pointer" style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}>Done ✓</button>
+              <button onClick={() => { setMobileStep('results'); if (ingredients.length > 0 && !loading) matchRecipes(); }} className="text-sm font-bold text-white px-3 py-1 rounded-full cursor-pointer" style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}>Done ✓</button>
             </div>
           )}
           {/* Sidebar content */}
           <div className="flex-1 overflow-y-auto sidebar-scroll px-4 pt-4 pb-4">
-            <IngredientInput ingredients={ingredients} onIngredientsChange={handleIngredientsChange} onSearchByName={handleSearchByName} />
-            {searchQuery.trim() && (
-              <div className="mt-2 mb-3 flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
-                <span className="text-xs">🔍</span>
-                <p className="text-xs font-semibold text-blue-500 flex-1">Text search active — ingredients ignored</p>
-                <button
-                  onClick={() => { setSearchQuery(''); setNameSearchResults(null); }}
-                  className="text-xs font-bold text-blue-400 hover:text-blue-600 transition-colors cursor-pointer shrink-0"
-                >
-                  ✕ clear
-                </button>
-              </div>
-            )}
+            <IngredientInput ingredients={ingredients} onIngredientsChange={handleIngredientsChange} onSearchByName={handleSearchByName} onSearchSubmit={() => { if (isMobile) { setMobileStep('results'); if (ingredients.length > 0 && !loading) matchRecipes(); } }} searchActive={!!searchQuery.trim()} onClearSearch={() => { setSearchQuery(''); setNameSearchResults(null); }} />
             <div className={searchQuery.trim() ? 'opacity-40 pointer-events-none select-none' : ''}>
               <IngredientCategories ingredients={ingredients} onIngredientsChange={handleIngredientsChange} />
             </div>
@@ -733,7 +721,7 @@ const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null)
                 {ingredients.length > 0 ? `${ingredients.length} ingredient${ingredients.length !== 1 ? 's' : ''} selected` : 'No ingredients yet'}
               </span>
               <button
-                onClick={() => setMobileStep('results')}
+                onClick={() => { setMobileStep('results'); if (ingredients.length > 0 && !loading) matchRecipes(); }}
                 className="text-sm font-bold text-white px-5 py-2 rounded-full cursor-pointer"
                 style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}
               >
@@ -752,7 +740,7 @@ const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null)
               <span className="text-sm font-black text-gray-800">
                 {loading ? 'Finding...' : `${cookable} recipe${cookable !== 1 ? 's' : ''} found`}
               </span>
-              <button onClick={() => setShowMobileFilter(true)} className="text-lg cursor-pointer">🎛</button>
+              <div />
             </div>
           )}
           <div className="flex-1 overflow-y-auto flex flex-col">
@@ -855,12 +843,6 @@ const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null)
                   onClick={() => setMobileStep('ingredients')}
                 >
                   🥕 Pick Ingredients →
-                </button>
-                <button
-                  className="md:hidden text-xs text-gray-400 hover:text-orange-500 transition-colors cursor-pointer"
-                  onClick={() => setMobileStep('results')}
-                >
-                  or browse all recipes
                 </button>
               </div>
 

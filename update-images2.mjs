@@ -1,0 +1,102 @@
+import { MongoClient } from 'mongodb';
+
+const client = new MongoClient(process.env.MONGODB_URI);
+
+const updates = [
+  ['Beef Tacos', 'https://www.recipetineats.com/tachyon/2019/04/Beef-Tacos_8.jpg'],
+  ['Beef and Mustard Pie', 'https://images.immediate.co.uk/production/volatile/sites/30/2020/08/recipe-image-legacy-id-544824_11-720e3e7.jpg'],
+  ['Beef and Oyster Pie', 'https://www.bbcgoodfood.com/sites/default/files/styles/recipe/public/recipe/recipe-image/2013/05/steak-oyster-pie.jpg'],
+  ['Beef and Vegetable Soup', 'https://www.allrecipes.com/thmb/pJcl-W-Q5TniV0WPk3QfDIpPOHo=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/14685-beef-and-vegetable-soup-DDMFS-4x3-b06c0aa51a5843678dce21dc26af1e4f.jpg'],
+  ['Beef kofta curry', 'https://images.immediate.co.uk/production/volatile/sites/30/2020/08/recipe-image-legacy-id-342413_11-4ffa0a9.jpg'],
+  ['Beetroot & goat cheese salad', 'https://images.immediate.co.uk/production/volatile/sites/30/2021/07/Beetroot-goats-cheese-salad-2b0f30a.jpg'],
+  ['Beetroot Soup', 'https://www.bowlofdelicious.com/wp-content/uploads/2023/02/Beet-Soup-square-500x500.jpg'],
+  ['Bengali Fish Curry', 'https://www.whiskaffair.com/wp-content/uploads/2021/01/Bengali-Fish-Curry-2-1.jpg'],
+  ['Bigos (Polish hunter\'s stew)', 'https://www.thespruceeats.com/thmb/4lknmQ8d2K1A1VHmyGIbuvCbSnc=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/bigos-hunters-stew-recipe-1136852-hero-01-fe79c7e70b6d41f388acd5efef46c52a.jpg'],
+  ['Biscuits and Gravy', 'https://www.spendwithpennies.com/wp-content/uploads/2019/02/HWSE-SpendWithPennies-Biscuits-and-Gravy-12.jpg'],
+  ['Black Bean Soup', 'https://www.wellplated.com/wp-content/uploads/2019/01/Healthy-Black-Bean-Soup-with-Avocado.jpg'],
+  ['Black Bean Tacos', 'https://www.loveandlemons.com/wp-content/uploads/2020/04/black-bean-tacos.jpg'],
+  ['Black-eyed pea curry', 'https://www.vegrecipesofindia.com/wp-content/uploads/2020/09/black-eyed-peas-curry-1.jpg'],
+  ['Blackberry Fool', 'https://images.immediate.co.uk/production/volatile/sites/30/2020/08/recipe-image-legacy-id-237613_11-52d9d84.jpg'],
+  ['Blackened Salmon', 'https://www.thespruceeats.com/thmb/YGIJPJ-KFCgMxFXH6VOkd-hEeio=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/blackened-salmon-fillet-recipe-335799-hero-01-c7af4b4186b541c1bdc7f0b8e3c4b5e8.jpg'],
+  ['Blueberry Muffins', 'https://sallysbakingaddiction.com/wp-content/uploads/2016/06/extra-tall-blueberry-muffins-1.jpg'],
+  ['Bobotie', 'https://www.196flavors.com/wp-content/uploads/2019/10/bobotie-5.jpg'],
+  ['Boeuf bourguignon', 'https://www.onceuponachef.com/images/2023/01/Beef-Bourguignon.jpg'],
+  ['Bok choy in oyster sauce', 'https://www.wokandkin.com/wp-content/uploads/2020/05/Bok-Choy-in-Oyster-Sauce-2.jpg'],
+  ['Bougatsa', 'https://www.mygreekdish.com/wp-content/uploads/2014/01/Bougatsa-Greek-Custard-Pie-in-Phyllo.jpg'],
+  ['Braised Lamb Shanks', 'https://www.recipetineats.com/tachyon/2016/07/Braised-Lamb-Shanks_6.jpg'],
+  ['Braised Pork Belly', 'https://omnivorescookbook.com/wp-content/uploads/2022/06/220501_Red-Braised-Pork-Belly_MH_thumbnail.jpg'],
+  ['Breakfast Burrito', 'https://www.spendwithpennies.com/wp-content/uploads/2020/05/Breakfast-Burrito-SpendWithPennies-9.jpg'],
+  ['Brigadeiro', 'https://oliviascuisine.com/wp-content/uploads/2021/02/Brigadeiro-1.jpg'],
+  ['Brown Stew Chicken', 'https://www.jamaicanfoodsandrecipes.com/wp-content/uploads/2021/10/brown-stew-chicken.jpg'],
+  ['Bubble and Squeak', 'https://images.immediate.co.uk/production/volatile/sites/30/2020/08/recipe-image-legacy-id-73241_11-0acd4ad.jpg'],
+  ['Buffalo Chicken Wings', 'https://www.allrecipes.com/thmb/0rqSwGTnSQ_IiSBpjzxbr4Bn-Rs=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/26900-the-best-buffalo-wings-DDMFS-4x3-7e1ef39d78734a84bba10c5f04f42b68.jpg'],
+  ['Burrata Salad', 'https://feelgoodfoodie.net/wp-content/uploads/2022/07/Burrata-Salad-TIMG.jpg'],
+  ['Butter Chicken', 'https://www.recipetineats.com/tachyon/2020/01/Butter-Chicken_6.jpg'],
+  ['Butter Paneer', 'https://ministryofcurry.com/wp-content/uploads/2017/05/paneer-butter-masala.jpg'],
+  ['Buttered Rice', 'https://www.allrecipes.com/thmb/cK7eibNf5Bkg9_yN6RQA-6u9bNQ=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/232787-butter-rice-DDMFS-4x3-b3c3b6cf3ea64ccdbf0ea54fe4a0b79d.jpg'],
+  ['Buttermilk Pancakes', 'https://sallysbakingaddiction.com/wp-content/uploads/2019/02/buttermilk-pancakes.jpg'],
+  ['Caesar Salad', 'https://www.recipetineats.com/tachyon/2016/07/Caesar-Salad_6.jpg'],
+  ['Cajun Chicken Pasta', 'https://www.budgetbytes.com/wp-content/uploads/2013/08/Cajun-Chicken-Pasta-plate.jpg'],
+  ['Cajun Salmon', 'https://cafedelites.com/wp-content/uploads/2018/03/Cajun-Salmon-IMAGE-3.jpg'],
+  ['Calamari', 'https://www.recipetineats.com/tachyon/2021/07/Calamari_8.jpg'],
+  ['Cannoli', 'https://www.recipetineats.com/tachyon/2022/02/Cannoli_9.jpg'],
+  ['Cantaloupe Salad', 'https://images.immediate.co.uk/production/volatile/sites/30/2021/07/Cantaloupe-mozzarella-and-prosciutto-salad-c8c6f73.jpg'],
+  ['Caprese Salad', 'https://www.loveandlemons.com/wp-content/uploads/2022/07/caprese-salad.jpg'],
+  ['Caramelised onion soup', 'https://www.bbcgoodfood.com/sites/default/files/styles/recipe/public/recipe/recipe-image/2021/11/caramelised-onion-soup-with-gruyere-croutons.jpg'],
+  ['Carbonara', 'https://www.recipetineats.com/tachyon/2019/05/Pasta-Carbonara_6.jpg'],
+  ['Carrot Cake', 'https://sallysbakingaddiction.com/wp-content/uploads/2019/02/carrot-cake.jpg'],
+  ['Cauliflower Curry', 'https://www.recipetineats.com/tachyon/2020/05/Cauliflower-Curry_6.jpg'],
+  ['Ceviche', 'https://www.loveandlemons.com/wp-content/uploads/2023/05/ceviche-recipe.jpg'],
+  ['Chana Masala', 'https://www.cookwithmanali.com/wp-content/uploads/2014/06/chana-masala-recipe.jpg'],
+  ['Chapati', 'https://www.indianhealthyrecipes.com/wp-content/uploads/2021/10/chapati-recipe.jpg'],
+  ['Char Siu', 'https://omnivorescookbook.com/wp-content/uploads/2021/01/210101_Char-Siu_MH_thumbnail.jpg'],
+  ['Cheese Fondue', 'https://www.onceuponachef.com/images/2021/12/cheese-fondue.jpg'],
+  ['Cheeseburger', 'https://www.recipetineats.com/tachyon/2018/07/The-Juicy-Lucy-Burger_6.jpg'],
+  ['Cheesecake', 'https://sallysbakingaddiction.com/wp-content/uploads/2017/03/classic-new-york-style-cheesecake-1.jpg'],
+  ['Chicken & Waffles', 'https://www.spendwithpennies.com/wp-content/uploads/2020/03/Chicken-and-Waffles-SpendWithPennies-1.jpg'],
+  ['Chicken Adobo', 'https://www.recipetineats.com/tachyon/2021/02/Chicken-Adobo_6.jpg'],
+  ['Chicken Alfredo', 'https://www.spendwithpennies.com/wp-content/uploads/2019/10/Chicken-Alfredo-SpendWithPennies.jpg'],
+  ['Chicken Caesar Salad Wraps', 'https://www.recipetineats.com/tachyon/2020/07/Chicken-Caesar-Wrap_6.jpg'],
+  ['Chicken Cacciatore', 'https://www.recipetineats.com/tachyon/2019/08/Chicken-Cacciatore_6.jpg'],
+  ['Chicken Chow Mein', 'https://www.recipetineats.com/tachyon/2019/04/Chow-Mein_7.jpg'],
+  ['Chicken Coconut Curry', 'https://www.onceuponachef.com/images/2023/01/Thai-Chicken-Curry.jpg'],
+  ['Chicken Congee', 'https://omnivorescookbook.com/wp-content/uploads/2021/03/210215_Chicken-Congee_MH_thumbnail.jpg'],
+  ['Chicken Cordon Bleu', 'https://www.spendwithpennies.com/wp-content/uploads/2019/02/Chicken-Cordon-Bleu-SpendWithPennies-1.jpg'],
+  ['Chicken Curry', 'https://www.recipetineats.com/tachyon/2018/06/Chicken-Curry_6.jpg'],
+  ['Chicken Fajitas', 'https://www.recipetineats.com/tachyon/2018/03/Chicken-Fajitas_6.jpg'],
+  ['Chicken Florentine', 'https://www.allrecipes.com/thmb/wJQ4fcEWaL37xCaHBHx5y8kZe_4=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/Chicken-Florentine-3x2-1-2000-f3c6f25a76b14e8e8d23459a8f5c3d6a.jpg'],
+  ['Chicken Fried Rice', 'https://www.recipetineats.com/tachyon/2018/08/Chicken-Fried-Rice-8.jpg'],
+  ['Chicken Gyros', 'https://www.recipetineats.com/tachyon/2014/06/Chicken-Gyros_5.jpg'],
+  ['Chicken Katsu', 'https://www.recipetineats.com/tachyon/2021/01/Chicken-Katsu_6.jpg'],
+  ['Chicken Korma', 'https://www.recipetineats.com/tachyon/2019/08/Chicken-Korma_6.jpg'],
+  ['Chicken Marsala', 'https://www.onceuponachef.com/images/2022/10/chicken-marsala.jpg'],
+  ['Chicken Mole', 'https://www.allrecipes.com/thmb/b4W78JFBs0UKz-Z_k3jJ6ZAFpL8=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/1058817-Mexican-Mole-Sauce-DDMFS-4x3-bdf4e14f81ef4c029c6fe5b4f44c5f34.jpg'],
+  ['Chicken Noodle Soup', 'https://www.recipetineats.com/tachyon/2019/10/Chicken-Noodle-Soup_9.jpg'],
+  ['Chicken Parmesan', 'https://www.onceuponachef.com/images/2023/04/chicken-parmesan.jpg'],
+  ['Chicken Piccata', 'https://www.recipetineats.com/tachyon/2021/03/Chicken-Piccata_6.jpg'],
+  ['Chicken Pot Pie', 'https://sallysbakingaddiction.com/wp-content/uploads/2017/11/chicken-pot-pie-3.jpg'],
+  ['Chicken Provencal', 'https://images.immediate.co.uk/production/volatile/sites/30/2020/08/recipe-image-legacy-id-390488_11-6fd1e28.jpg'],
+  ['Chicken Quesadillas', 'https://www.recipetineats.com/tachyon/2020/09/Quesadillas_6.jpg'],
+  ['Chicken Satay', 'https://www.recipetineats.com/tachyon/2018/05/Chicken-Satay_6.jpg'],
+  ['Chicken Shawarma', 'https://www.recipetineats.com/tachyon/2016/09/Chicken-Shawarma_5.jpg'],
+  ['Chicken Souvlaki', 'https://www.recipetineats.com/tachyon/2019/06/Greek-Chicken-Souvlaki_9.jpg'],
+  ['Chicken Stir Fry', 'https://www.recipetineats.com/tachyon/2019/04/Chinese-Chicken-Stir-Fry_6.jpg'],
+  ['Chicken Tikka Masala', 'https://www.recipetineats.com/tachyon/2018/09/Chicken-Tikka-Masala_6.jpg'],
+  ['Chicken and Mushroom Pie', 'https://images.immediate.co.uk/production/volatile/sites/30/2020/08/recipe-image-legacy-id-272052_12-3ad5e17.jpg'],
+  ['Chicken and mushroom risotto', 'https://images.immediate.co.uk/production/volatile/sites/30/2020/08/recipe-image-legacy-id-236441_12-8e38e14.jpg'],
+  ['Chicken burrito bowl', 'https://www.recipetineats.com/tachyon/2018/07/Chicken-Burrito-Bowl_6.jpg'],
+];
+
+await client.connect();
+const db = client.db(process.env.MONGODB_DB || 'recipematch');
+let updated = 0;
+for (const [title, imageUrl] of updates) {
+  const result = await db.collection('recipes').updateOne(
+    { title },
+    { $set: { imageUrl } }
+  );
+  if (result.modifiedCount > 0) { updated++; console.log('✓', title); }
+  else console.log('✗ not found:', title);
+}
+console.log(`\nDone! Updated: ${updated} / ${updates.length}`);
+await client.close();

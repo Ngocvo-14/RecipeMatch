@@ -1,0 +1,103 @@
+import { MongoClient } from 'mongodb';
+
+const client = new MongoClient(process.env.MONGODB_URI);
+
+const updates = [
+  ['Beef Tacos', 'https://www.cookingclassy.com/wp-content/uploads/2018/01/shredded-beef-tacos-3.jpg'],
+  ['Beef Tenderloin', 'https://www.recipetineats.com/tachyon/2023/12/Beef-tenderloin-with-mushroom-sauce_3.jpg'],
+  ['Beef Wellington', 'https://static01.nyt.com/images/2019/12/13/dining/mc-beef-wellington/mc-beef-wellington-mediumSquareAt3X-v2.jpg'],
+  ['Beef and Broccoli Stir-Fry', 'https://feelgoodfoodie.net/wp-content/uploads/2023/04/Beef-and-Broccoli-Stir-Fry-TIMG.jpg'],
+  ['Beef and Mustard Pie', 'https://ik.imagekit.io/littlecook/public_images/recipes/beef-and-mustard-pie.jpg'],
+  ['Beef stroganoff', 'https://www.allrecipes.com/thmb/mSWde3PHTu-fDkbvWBw0D1JlS8U=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/25202beef-stroganoff-iii-ddmfs-3x4-233-0f26fa477e9c446b970a32502468efc6.jpg'],
+  ['Beetroot & red cabbage sauerkraut', 'https://cdn.pickuplimes.com/cache/99/d4/99d436c20ffd50730d338dbbef928b33.jpg'],
+  ['Beetroot Soup (Borscht)', 'https://natashaskitchen.com/wp-content/uploads/2018/10/Borscht-Recipe-2.jpg'],
+  ['Beetroot latkes', 'https://www.myjewishlearning.com/wp-content/uploads/2016/12/BeetLatkes4.jpg'],
+  ['Beetroot pancakes', 'https://createmindfully.com/wp-content/uploads/2024/03/beet-pancakes-square.jpg'],
+  ['Big Mac', 'https://hips.hearstapps.com/hmg-prod/images/big-mac-index-66574ee4103a5.jpg'],
+  ["Bigos (Polish hunter's stew)", 'https://www.foodandwine.com/thmb/EXf6oNWa14OU2jn-JGLP9ppugyU=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/Bigos-FT-RECIPE1025-c3fcd8b26c77441cb90aa68ec73ad9fc.jpg'],
+  ['Bistek', 'https://www.billyparisi.com/wp-content/uploads/2025/02/bistek-tagalog-3.jpg'],
+  ['Bitterballen (Dutch meatballs)', 'https://mission-food.com/wp-content/uploads/2023/08/Bitterballen-Dutch-Fried-Meatballs-Featured.jpg'],
+  ['Black Bean Tacos', 'https://cdn.loveandlemons.com/wp-content/uploads/2025/03/black-bean-tacos.jpg'],
+  ['Blini Pancakes', 'https://www.allrecipes.com/thmb/n2-G1V5MJde9_S6S6jjy0RwjcWc=/0x512/filters:no_upscale():max_bytes(150000):strip_icc()/AR-260537-easy-blini-russian-pancake-DDMFS-4x3-beauty-0f3dd3a823054d82bb92bf9546ecc12b.jpg'],
+  ['Boiled egg rice', 'https://coupleeatsfood.com/wp-content/uploads/2022/04/Korean-Marinated-Eggs-Mayak-Gyeran-8.jpg'],
+  ['Borsch', 'https://www.allrecipes.com/thmb/LTMiS5Tk0Uf63rMvtkzwB96Boec=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/84450-ukranian-red-borscht-soup-ddmfs-0266-3x4-hero-890c67fee10b4b0e828f152d22888a56.jpg'],
+  ['Braised Beef Chilli', 'https://www.deliciousmagazine.co.uk/wp-content/uploads/2018/07/809224-1-eng-GB_braised_beef_chilli.jpg'],
+  ['Braised stuffed cabbage', 'https://images.immediate.co.uk/production/volatile/sites/30/2020/08/recipe-image-legacy-id-13334_10-c447882.jpg'],
+  ['Bread and Butter Pudding', 'https://www.recipetineats.com/tachyon/2020/09/Bread-Butter-Pudding_4-SQ.jpg'],
+  ['Bread omelette', 'https://www.foodnetwork.com/content/dam/images/food/fullset/2020/02/10/0/FNK_One-Pan-Egg-Cheese-Omelet-Sandwich_H1_s4x3.jpg'],
+  ['Breakfast Bolognese', 'https://recipes-nz.b-cdn.net/6cf940282ffc3606647abcccddce1051b9d70835-1920x1080.png'],
+  ['Breakfast Deviled Eggs', 'https://www.mantitlement.com/wp-content/uploads/2017/01/sausage-hash-brown-stuffed-eggs-feature.jpg'],
+  ['Breakfast Dogs', 'https://www.crunchtimekitchen.com/wp-content/uploads/2024/10/Breakfast-Dogs-feature1-Feature.jpg'],
+  ['Breakfast Focaccia recipes', 'https://ediblealaska.ediblecommunities.com/wp-content/uploads/2021/11/breakfast-focaccia-1.jpg'],
+  ['Breakfast Fried Rice', 'https://tastesbetterfromscratch.com/wp-content/uploads/2024/08/Breakfast-Fried-Rice24-1.jpg'],
+  ['Breakfast Pasta', 'https://theviewfromgreatisland.com/wp-content/uploads/2021/02/breakfast-pasta-8500242-February-16-2021-2.jpg'],
+  ['Breakfast Pigs in a Blanket', 'https://tornadoughalli.com/wp-content/uploads/2022/11/BREAKFAST-PIGS-IN-A-BLANKET-5-1.jpg'],
+  ['Breakfast Potatoes', 'https://jessicainthekitchen.com/wp-content/uploads/2025/07/Breakfast-Potatoes_13.jpg'],
+  ['Breakfast Sausage Puffs', 'https://www.allrecipes.com/thmb/v2Td-a5OwywA_1xIHkxYKy2Cu88=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/240834best-breakfast-sausage-balls-everfabeveryday4x3-3f8d9c08848c4f47997f43abc232a89d.jpg'],
+  ['Breakfast Sausage, Mushroom, and Cheddar Rolls Recipe', 'https://dancearoundthekitchen.com/wp-content/uploads/2024/09/DSC_1154.jpg'],
+  ['Brick Chicken', 'https://www.billyparisi.com/wp-content/uploads/2025/01/brick-chicken-2.jpg'],
+  ['Brie wrapped in prosciutto & brioche', 'https://images.immediate.co.uk/production/volatile/sites/30/2020/08/recipe-image-legacy-id-836545_11-0fee5f4.jpg'],
+  ['Broccoli Beef', 'https://natashaskitchen.com/wp-content/uploads/2019/08/Beef-and-Broccoli-2.jpg'],
+  ['Broccoli, chicken & cashew nut stir fry', 'https://www.gimmesomeoven.com/wp-content/uploads/2022/07/Cashew-Chicken-and-Broccoli-Recipe-6-412x600.jpg'],
+  ['Broiled Eggs', 'https://assets.epicurious.com/photos/6335fd3471f37c51bd39d902/1:1/w_2560%2Cc_limit/Broiled%2520Eggs-RECIPE.JPG'],
+  ['Brown Stew Chicken', 'https://www.foodandwine.com/thmb/VOp3VmgNuByqJCdqnvs_nq9CoQs=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/Brown-Stew-Chicken-FT-MAG-RECIPE-1224-b2263c68dc884356bc14cb67882f4e81.jpg'],
+  ['Brun Lapskaus (Norwegian Beef Vegetable Stew)', 'https://northwildkitchen.com/wp-content/uploads/2018/01/P6040449.jpg'],
+  ['Bruschetta', 'https://cdn.loveandlemons.com/wp-content/uploads/2025/05/bruschetta.jpg'],
+  ['Bubble & Squeak', 'https://www.kitchensanctuary.com/wp-content/uploads/2025/12/Bubble-and-Squeak-Square-FS.jpg'],
+  ['Buffalo Chicken Grilled Cheese Sandwich Recipe', 'https://easychickenrecipes.com/wp-content/uploads/2023/08/buffalo-chicken-grilled-cheese-recipe-3.jpg'],
+  ['Buffalo Wings', 'https://www.recipetineats.com/tachyon/2019/01/Baked-Buffalo-Wings_0.jpg'],
+  ['Burritos', 'https://rumbameats.com/wp-content/uploads/2025/11/Thai-Beef-Cheek-Burritos.jpg'],
+  ['Butter Chicken', 'https://www.indianhealthyrecipes.com/wp-content/uploads/2023/04/butter-chicken-recipe-500x500.jpg'],
+  ['Buttered Corn And Noodles', 'https://static01.nyt.com/images/2023/07/14/multimedia/14EVERYDAY-VEGETABLESrex3-hbck/14EVERYDAY-VEGETABLESrex3-hbck-mediumSquareAt3X.jpg'],
+  ['Buttered Noodles', 'https://www.allrecipes.com/thmb/IAP81Be7Nyly6t_Wkq1uYKzH-qo=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/244458-buttered-noodles-DDMFS-4x3-b9931662efa64b37883c0f73b296b124.jpg'],
+  ['Butterflied Leg of Lamb', 'https://www.simplyrecipes.com/thmb/koBFavAESKvN9iQ07eHdvxOcnX0=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/__opt__aboutcom__coeus__resources__content_migration__simply_recipes__uploads__2007__07__grilled-leg-of-lamb-horiz-a-1800-959f8c0782464047b4d4733bc392e1e7.jpg'],
+  ['Butternut Squash Soup', 'https://damndelicious.net/wp-content/uploads/2014/12/230711_DD_Roasted-Butternut-Squash-Bacon-Soup_243.jpg'],
+  ['CRUNCHY SALAD WITH VINEGAR DRESSING', 'https://fountainavenuekitchen.com/wp-content/uploads/2016/05/crunch-salad-2.jpg'],
+  ['Cabbage and Noodles', 'https://www.allrecipes.com/thmb/O-_2OINBaoupReu7fU8AOhjGGr4=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/220716-haluski-cabbage-and-noodles-ddmfs-4x3-hero-1654d0e423d84f4283b1d3e105c489f9.jpg'],
+  ['Caesar Salad', 'https://cdn.loveandlemons.com/wp-content/uploads/2024/12/caesar-salad.jpg'],
+  ['Callaloo Jamaican Style', 'https://seasonedskilletblog.com/wp-content/uploads/2022/09/Jamaican-Callaloo-6.jpg'],
+  ['Callaloo and SaltFish', 'https://jehancancook.com/wp-content/uploads/2017/06/Callaloo-and-Saltfish-1-6.jpg'],
+  ['Capered salmon', 'https://www.acouplecooks.com/wp-content/uploads/2020/02/oven-baked-salmon-with-capers-006.jpg'],
+  ['Caprese Salad', 'https://wellnessmama.com/wp-content/uploads/Caprese_Salad_Recipe_9-500x500.jpg'],
+  ['Caraway Egg Noodles', 'https://www.theoriginaldish.com/wp-content/uploads/2020/04/Brown-Butter-Noodles-2.jpg'],
+  ['Caribbean Tamarind balls', 'https://static.wixstatic.com/media/35fb31_221a7681797d4929aa2314a7fcb964f2~mv2.jpg/v1/fill/w_568,h_568,al_c,q_80,usm_0.66_1.00_0.01,enc_avif,quality_auto/35fb31_221a7681797d4929aa2314a7fcb964f2~mv2.jpg'],
+  ['Carrot Cake', 'https://vikalinka.com/wp-content/uploads/2022/03/Carrot-Cake-14-Edit.jpg'],
+  ['Carrot-Tomato Soup', 'https://realgreekrecipes.com/wp-content/uploads/2019/10/Tomato-Carrot-Soup.jpg'],
+  ['Cashew Curry recipes', 'https://savoryspin.com/wp-content/uploads/2021/04/PlantBased-Cashew-Curry.jpg'],
+  ['Cassava pizza', 'https://wellnessmama.com/wp-content/uploads/Herbed_Cassava_Flour_Pizza_Crust2.jpg'],
+  ['Catalan Chicken', 'https://www.foodandwine.com/thmb/LuOqT6bov6IZlrOSFdnYoKd8l10=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/200710-r-xl-chicken-with-catalan-picada-2000-16a58335cf624ede92e6596dc327acc3.jpg'],
+  ['Cauliflower Curry', 'https://www.simplyorganic.com/media/wysiwyg/tmp/simply-organic-recipe-chickpea-and-cauliflower-turmeric-curry-900x900.jpg'],
+  ['Cauliflower and Tofu Curry Recipe', 'https://www.deliciousmagazine.co.uk/wp-content/uploads/2019/02/curry.jpg'],
+  ['Cauliflower pasta', 'https://cdn.loveandlemons.com/wp-content/uploads/2022/01/cauliflower-pasta-recipes.jpg'],
+  ['Celery Stir Fry', 'https://www.feastingathome.com/wp-content/uploads/2025/01/Celery-Stir-fry-8.jpg'],
+  ['Cevapi Sausages', 'https://www.recipesfromeurope.com/wp-content/uploads/2023/04/balkan-cevapi-recipe.jpg'],
+  ['Chakchouka ', 'https://www.allrecipes.com/thmb/6X6yMwmWIOxytR_P74lFSMRTimk=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/213717-Chakchouka-DDMFS-4x3-1373-6721f79ac68347d28df5e8e44cdab25d.jpg'],
+  ['Challah', 'https://static01.nyt.com/images/2015/11/19/dining/19COOKING-CHALLAHLOAF2/19COOKING-CHALLAHLOAF2-mobileMasterAt3x-v2.jpg'],
+  ['Chana Curry', 'https://images.immediate.co.uk/production/volatile/sites/30/2020/08/chana-masala-fb809bc.jpg'],
+  ['Chana Masala', 'https://minimalistbaker.com/wp-content/uploads/2016/02/AMAZING-Chana-Masala-made-in-1-Pot-So-healthy-flavorful-and-delicious-vegan-glutenfree-chanamasala-recipe-minimalistbaker.jpg'],
+  ['Charred onion & tomato salad', 'https://images.immediate.co.uk/production/volatile/sites/30/2020/08/charred-onion-tomato-salad-59511af.jpg'],
+  ['Cheese Borek', 'https://vidarbergum.com/wp-content/uploads/2022/01/turkish-tray-borek-cheese-peynirli-tepsi-borek-7.jpg'],
+  ['Cheese Omelette', 'https://assets.epicurious.com/photos/54cad8d21f13bb9b2edf9930/master/pass/51262180_cheese-omelette_1x1.jpg'],
+  ['Chicken & chorizo rice pot', 'https://images.immediate.co.uk/production/volatile/sites/30/2020/08/recipe-image-legacy-id-954452_11-fc1175f.jpg'],
+  ['Chicken & mushroom Hotpot', 'https://images.immediate.co.uk/production/volatile/sites/30/2020/08/chicken-mushroom-hot-pot-07d16a5.jpg'],
+  ['Chicken Alfredo Primavera', 'https://www.onesweetmess.com/wp-content/uploads/2015/10/Chicken-Alfredo-Primavera-2.jpg'],
+  ['Chicken Basquaise', 'https://www.foodandwine.com/thmb/7_y1SLSmabv8G3X6-bjZkNFfgOE=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/Poulet-Basquaise-FT-RECIPE1023-1e5c2fc9a9324247bb91968a096066e3.jpg'],
+  ['Chicken Chashu', 'https://www.justonecookbook.com/wp-content/uploads/2024/12/Chicken-Chashu-Ramen-1826-I-500x500.jpg'],
+  ['Chicken Congee', 'https://beyondsweetandsavory.com/wp-content/uploads/2021/06/Instant-Pot-Vietnamese-chicken-congee-Vy-Tran-5-of-11-853x1280-1.jpg'],
+  ['Chicken Couscous', 'https://www.themediterraneandish.com/wp-content/uploads/2021/10/chicken-couscous-recipe-9.jpg'],
+  ['Chicken Curry', 'https://www.allrecipes.com/thmb/5cNqrUZLaR6p7Wbq_khQjIKnHiE=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/46822-Indian-Chicken-Curry-PICS-Beauty-4x3-9535b806e7dc4f1da14f8ddb7a6367a4.jpg'],
+];
+
+await client.connect();
+const db = client.db(process.env.MONGODB_DB || 'recipematch');
+let updated = 0;
+for (const [title, imageUrl] of updates) {
+  const result = await db.collection('recipes').updateOne(
+    { title },
+    { $set: { imageUrl } }
+  );
+  if (result.modifiedCount > 0) { updated++; console.log('✓', title); }
+  else console.log('✗ not found:', title);
+}
+console.log(`\nDone! Updated: ${updated} / ${updates.length}`);
+await client.close();

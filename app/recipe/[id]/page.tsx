@@ -30,7 +30,8 @@ export default function RecipeDetailPage() {
 
   // ⋯ share dropdown
   const [showShare, setShowShare] = useState(false);
-  const shareRef = useRef<HTMLDivElement>(null);
+  const shareRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // save to collection modal
   const [showCollPicker, setShowCollPicker] = useState(false);
@@ -46,7 +47,10 @@ export default function RecipeDetailPage() {
   // ── close share dropdown on outside click ───────────────────────────────
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (shareRef.current && !shareRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const insideButton = shareRef.current?.contains(target);
+      const insideMenu = menuRef.current?.contains(target);
+      if (!insideButton && !insideMenu) {
         setShowShare(false);
       }
     }
@@ -192,25 +196,37 @@ export default function RecipeDetailPage() {
   }
 
   async function copyLink() {
-    const url = `${window.location.origin}/recipe/${id}`;
+    const url = window.location.href;
+    setShowShare(false);
     try {
       await navigator.clipboard.writeText(url);
       addToast('Link copied! ✓');
     } catch {
-      addToast('Copy failed');
+      // Fallback for browsers that block clipboard API
+      const el = document.createElement('input');
+      el.value = url;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      addToast('Link copied! ✓');
     }
-    setShowShare(false);
   }
 
   async function shareRecipe() {
-    const url = `${window.location.origin}/recipe/${id}`;
-    if (typeof navigator !== 'undefined' && navigator.share) {
+    setShowShare(false);
+    if (navigator.share) {
       try {
-        await navigator.share({ title: recipe?.title ?? '', text: `Check out this recipe: ${recipe?.title}`, url });
+        await navigator.share({
+          title: recipe?.title ?? '',
+          text: recipe?.description || recipe?.title || '',
+          url: window.location.href,
+        });
       } catch { /* user cancelled */ }
-      setShowShare(false);
     } else {
-      await copyLink();
+      // Fallback: copy link if Web Share API not available
+      await navigator.clipboard.writeText(window.location.href).catch(() => {});
+      addToast('Link copied to clipboard!');
     }
   }
 
@@ -306,20 +322,20 @@ export default function RecipeDetailPage() {
   return (
     <div className="min-h-screen bg-[#F8F9FA]">
       {/* Nav — back | logo centered | username */}
-      <div className="sticky top-0 z-10 bg-white border-b border-[#E8ECEF] px-4 py-2.5 flex items-center shadow-sm">
+      <div className="sticky top-0 z-10 bg-white border-b border-[#E8ECEF] px-4 py-2.5 grid grid-cols-3 items-center shadow-sm">
         {/* Left — back */}
-        <div className="flex-1 flex items-center">
+        <div className="justify-self-start">
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-2 text-sm font-black hover:opacity-80 transition-opacity cursor-pointer shrink-0"
+            className="flex items-center gap-1 text-sm font-black hover:opacity-80 transition-opacity cursor-pointer shrink-0"
             style={{ color: '#FF6B6B' }}
           >
-            ← Go Back
+            <span>←</span><span className="hidden md:inline"> Go Back</span>
           </button>
         </div>
 
         {/* Center — RecipeMatch logo */}
-        <Link href="/" className="flex items-center gap-3 group">
+        <Link href="/" className="justify-self-center flex items-center gap-3 group">
           <div className="relative">
             <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
               <circle cx="20" cy="20" r="19" fill="#FFF7ED" stroke="#FED7AA" strokeWidth="1.5"/>
@@ -334,14 +350,14 @@ export default function RecipeDetailPage() {
             </svg>
             <span className="absolute top-1.5 right-1 w-2 h-2 rounded-full bg-yellow-400 opacity-75 animate-ping" />
           </div>
-          <div className="flex items-baseline gap-0">
+          <div className="hidden md:flex items-baseline gap-0">
             <span className="text-gray-900 font-extrabold text-xl tracking-tight group-hover:text-gray-700 transition-colors">Recipe</span>
             <span className="font-extrabold text-xl tracking-tight text-orange-500">Match</span>
           </div>
         </Link>
 
         {/* Right — username or sign in */}
-        <div className="flex-1 flex justify-end">
+        <div className="justify-self-end flex justify-end">
           {isLoggedIn ? (
             <Link href="/library" className="text-sm font-medium text-gray-600 hover:text-orange-500 transition-colors cursor-pointer">
               {displayName}
@@ -373,7 +389,7 @@ export default function RecipeDetailPage() {
 
         {/* Tags bottom-left */}
         <div className="absolute bottom-5 left-5 flex flex-wrap gap-2">
-          {[recipe.cuisine, recipe.mealType, recipe.difficulty].map((tag) => (
+          {[recipe.cuisine, recipe.mealType, recipe.difficulty].filter(Boolean).map((tag) => (
             <span key={tag} className="bg-white/90 backdrop-blur-sm text-[#2C2C2C] text-xs font-black px-3 py-1 rounded-full shadow-sm">
               {tag}
             </span>
@@ -386,42 +402,41 @@ export default function RecipeDetailPage() {
         </div>
 
         {/* ⋯ button — top-right of hero */}
-        <div ref={shareRef} className="absolute top-4 right-4">
-          <button
-            onClick={() => setShowShare((v) => !v)}
-            className="w-9 h-9 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-[#666] font-black text-lg shadow-md hover:bg-white transition-colors select-none"
-          >
-            ···
-          </button>
+        <button
+          ref={shareRef}
+          onClick={() => setShowShare((v) => !v)}
+          className="absolute top-4 right-4 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-[#666] font-black text-lg shadow-md hover:bg-white transition-colors select-none z-20"
+        >
+          ···
+        </button>
 
-          {showShare && (
-            <div className="absolute right-0 top-11 w-52 bg-white rounded-2xl shadow-xl border border-[#F0F0F0] overflow-hidden z-50">
+        {showShare && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowShare(false)} />
+            <div ref={menuRef} className="fixed top-16 right-4 z-50 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden w-44">
               <button
                 onClick={copyLink}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-[#2C2C2C] hover:bg-[#FFF5F5] transition-colors text-left"
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left text-sm font-medium text-gray-700 cursor-pointer transition-colors"
               >
-                <span className="text-base">🔗</span>
-                <span>Copy Link</span>
+                <span>🔗</span><span>Copy Link</span>
               </button>
-              <div className="border-t border-[#F5F5F5]" />
+              <div className="h-px bg-gray-100 mx-3" />
               <button
                 onClick={shareRecipe}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-[#2C2C2C] hover:bg-[#FFF5F5] transition-colors text-left"
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left text-sm font-medium text-gray-700 cursor-pointer transition-colors"
               >
-                <span className="text-base">📤</span>
-                <span>Share</span>
+                <span>📤</span><span>Share</span>
               </button>
-              <div className="border-t border-[#F5F5F5]" />
+              <div className="h-px bg-gray-100 mx-3" />
               <button
                 onClick={openCollPicker}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-[#2C2C2C] hover:bg-[#FFF5F5] transition-colors text-left"
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left text-sm font-medium text-gray-700 cursor-pointer transition-colors"
               >
-                <span className="text-base">📌</span>
-                <span>Save to Collection</span>
+                <span>📌</span><span>Save to Collection</span>
               </button>
             </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
 
       <div className="max-w-3xl mx-auto px-4 py-8 space-y-5">
@@ -463,12 +478,16 @@ export default function RecipeDetailPage() {
           <div className="bg-white rounded-3xl border border-[#F0F0F0] p-6 shadow-sm">
             <h2 className="text-lg font-black text-[#2C2C2C] mb-4">🧂 Ingredients</h2>
             <ul className="space-y-3">
-              {recipe.ingredients.map((ing, i) => (
+              {(recipe.ingredients || []).map((ing: any, i: number) => (
                 <li key={i} className="flex items-center gap-3">
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: '#52C9A0' }}></span>
                   <span className="text-sm font-semibold text-[#444]">
-                    {ing.quantity && <span className="font-black text-[#2C2C2C] mr-1.5">{ing.quantity}</span>}
-                    {ing.name}
+                    {typeof ing === 'string' ? ing : (
+                      <>
+                        {ing.quantity && <span className="font-black text-[#2C2C2C] mr-1.5">{ing.quantity}</span>}
+                        {ing.name}
+                      </>
+                    )}
                   </span>
                 </li>
               ))}
