@@ -272,8 +272,9 @@ function LibraryNav({ user, onLogout }: NavProps) {
   return (
     <div className="bg-white border-b border-gray-100 px-6 py-4 grid grid-cols-3 items-center sticky top-0 z-20">
       {/* Left — back */}
-      <button onClick={() => router.back()} className="justify-self-start flex items-center gap-1 text-sm font-black hover:opacity-80 transition-opacity cursor-pointer" style={{ color: '#FF6B6B' }}>
-        <span>←</span><span className="hidden md:inline"> Go Back</span>
+      <button onClick={() => router.back()} className="justify-self-start flex items-center gap-1 cursor-pointer font-black p-2" style={{ color: '#FF6B6B' }}>
+        <span className="text-2xl leading-none">←</span>
+        <span className="hidden md:inline text-base font-bold"> Go Back</span>
       </button>
 
       {/* Center — logo */}

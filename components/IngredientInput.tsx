@@ -87,9 +87,15 @@ export default function IngredientInput({ ingredients, onIngredientsChange, onSe
   function onKey(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
-      if (autocompleteResults.length > 0 && !isNotIngredient) add(autocompleteResults[0].name);
-      else add(input);
-      if (e.key === 'Enter') onSearchSubmit?.();
+      if (autocompleteResults.length > 0 && !isNotIngredient) {
+        add(autocompleteResults[0].name);
+        if (e.key === 'Enter') onSearchSubmit?.();
+      } else if (isNotIngredient || noIngredientMatch) {
+        redirectToRecipeSearch(input); // already calls onSearchSubmit internally
+      } else {
+        add(input);
+        if (e.key === 'Enter') onSearchSubmit?.();
+      }
     } else if (e.key === 'Backspace' && !input && ingredients.length > 0) {
       remove(ingredients[ingredients.length - 1]);
     } else if (e.key === 'Escape') {

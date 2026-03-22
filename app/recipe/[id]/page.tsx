@@ -327,10 +327,11 @@ export default function RecipeDetailPage() {
         <div className="justify-self-start">
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-1 text-sm font-black hover:opacity-80 transition-opacity cursor-pointer shrink-0"
+            className="flex items-center gap-1 cursor-pointer font-black p-2"
             style={{ color: '#FF6B6B' }}
           >
-            <span>←</span><span className="hidden md:inline"> Go Back</span>
+            <span className="text-2xl leading-none">←</span>
+            <span className="hidden md:inline text-base font-bold"> Go Back</span>
           </button>
         </div>
 

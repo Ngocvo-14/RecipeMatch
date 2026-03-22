@@ -293,6 +293,25 @@ const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null)
     return () => window.removeEventListener('resize', check);
   }, []);
 
+  useEffect(() => {
+    const handlePop = () => {
+      if (isMobile && mobileStep === 'results') {
+        setMobileStep('ingredients');
+      } else if (isMobile && mobileStep === 'ingredients') {
+        setMobileStep('hero');
+      }
+    };
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, [isMobile, mobileStep]);
+
+  // Trigger search when transitioning to mobile results step
+  useEffect(() => {
+    if (isMobile && mobileStep === 'results') {
+      matchRecipes();
+    }
+  }, [mobileStep, isMobile]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Init state: sessionStorage (survives back-nav) → URL params → localStorage
   useEffect(() => {
     try {
@@ -549,6 +568,7 @@ const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null)
   function handleNeedAuth() { setSelectedRecipe(null); setShowAuthGate(true); }
 
   function handleLogoClick() {
+    setMobileStep('hero');
     setIngredients([]);
     setFilters(DEFAULT_FILTERS);
     setSearchQuery('');
@@ -692,14 +712,17 @@ const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null)
           {/* Mobile ingredient step top bar */}
           {isMobile && (
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white shrink-0">
-              <button onClick={() => setMobileStep('hero')} className="text-sm font-semibold cursor-pointer" style={{ color: '#FF6B6B' }}>← Back</button>
+              <button onClick={() => setMobileStep('hero')} className="flex items-center gap-1 cursor-pointer font-black p-2" style={{ color: '#FF6B6B' }}>
+                <span className="text-2xl leading-none">←</span>
+                <span className="text-base font-bold">Back</span>
+              </button>
               <span className="font-black text-gray-800 text-sm">Pick Ingredients</span>
-              <button onClick={() => { setMobileStep('results'); if (ingredients.length > 0 && !loading) matchRecipes(); }} className="text-sm font-bold text-white px-3 py-1 rounded-full cursor-pointer" style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}>Done ✓</button>
+              <button onClick={() => { setMobileStep('results'); if (ingredients.length > 0) matchRecipes(); }} className="text-sm font-bold text-white px-3 py-1 rounded-full cursor-pointer" style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}>Done ✓</button>
             </div>
           )}
           {/* Sidebar content */}
           <div className="flex-1 overflow-y-auto sidebar-scroll px-4 pt-4 pb-4">
-            <IngredientInput ingredients={ingredients} onIngredientsChange={handleIngredientsChange} onSearchByName={handleSearchByName} onSearchSubmit={() => { if (isMobile) { setMobileStep('results'); if (ingredients.length > 0 && !loading) matchRecipes(); } }} searchActive={!!searchQuery.trim()} onClearSearch={() => { setSearchQuery(''); setNameSearchResults(null); }} />
+            <IngredientInput ingredients={ingredients} onIngredientsChange={handleIngredientsChange} onSearchByName={handleSearchByName} onSearchSubmit={() => { if (isMobile) { setMobileStep('results'); if (ingredients.length > 0) matchRecipes(); } }} searchActive={!!searchQuery.trim()} onClearSearch={() => { setSearchQuery(''); setNameSearchResults(null); }} />
             <div className={searchQuery.trim() ? 'opacity-40 pointer-events-none select-none' : ''}>
               <IngredientCategories ingredients={ingredients} onIngredientsChange={handleIngredientsChange} />
             </div>
@@ -721,7 +744,7 @@ const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null)
                 {ingredients.length > 0 ? `${ingredients.length} ingredient${ingredients.length !== 1 ? 's' : ''} selected` : 'No ingredients yet'}
               </span>
               <button
-                onClick={() => { setMobileStep('results'); if (ingredients.length > 0 && !loading) matchRecipes(); }}
+                onClick={() => { setMobileStep('results'); if (ingredients.length > 0) matchRecipes(); }}
                 className="text-sm font-bold text-white px-5 py-2 rounded-full cursor-pointer"
                 style={{ background: 'linear-gradient(135deg,#FF6B6B,#FF8E53)' }}
               >
@@ -736,7 +759,7 @@ const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null)
           {/* Mobile results top bar */}
           {isMobile && mobileStep === 'results' && (
             <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white shrink-0">
-              <button onClick={() => setMobileStep('ingredients')} className="text-sm font-semibold cursor-pointer" style={{ color: '#FF6B6B' }}>← Ingredients</button>
+              <button onClick={() => setMobileStep('ingredients')} className="text-xl font-bold cursor-pointer p-2 -m-2" style={{ color: '#FF6B6B' }}>← <span className="text-sm">Ingredients</span></button>
               <span className="text-sm font-black text-gray-800">
                 {loading ? 'Finding...' : `${cookable} recipe${cookable !== 1 ? 's' : ''} found`}
               </span>
@@ -850,7 +873,7 @@ const [selectedRecipe, setSelectedRecipe] = useState<MatchedRecipe | null>(null)
           )}
 
           {/* ── RESULTS / SEARCH ── */}
-          {(ingredients.length > 0 || searchQuery.trim() || loading) && (
+          {(ingredients.length > 0 || searchQuery.trim() || loading || (isMobile && mobileStep === 'results')) && (
             <div className="px-3 md:px-6 py-4 md:py-6">
               {loading && !results && ingredients.length > 0 && !nameSearchResults && (
                 <div className="flex flex-col items-center py-20 gap-3">
