@@ -118,7 +118,7 @@ export default function RecipeDetailPage() {
   // ── AI-generated steps for recipes with no real instructions ────────────
   useEffect(() => {
     const hasInstructions =
-      recipe?.instructions &&
+      Array.isArray(recipe?.instructions) &&
       recipe.instructions.filter(
         (i: string) => i.trim().length > 0 && !/^step\s+\d+:?$/i.test(i.trim())
       ).length > 0
@@ -305,7 +305,7 @@ export default function RecipeDetailPage() {
     );
   }
 
-  if (error || !recipe) {
+  if (error || !recipe || typeof recipe !== 'object') {
     return (
       <div className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center gap-4">
         <p className="text-[#666] font-semibold">{error || 'Recipe not found'}</p>
@@ -395,7 +395,7 @@ export default function RecipeDetailPage() {
               {tag}
             </span>
           ))}
-          {recipe.diet?.map((d) => (
+          {Array.isArray(recipe.diet) && recipe.diet.map((d) => (
             <span key={d} className="text-xs font-black px-3 py-1 rounded-full" style={{ background: '#F0FBF7', color: '#52C9A0' }}>
               {d}
             </span>
@@ -497,7 +497,7 @@ export default function RecipeDetailPage() {
 
           {/* Tags + Equipment */}
           <div className="space-y-5">
-            {recipe.tags?.length > 0 && (
+            {Array.isArray(recipe.tags) && recipe.tags.length > 0 && (
               <div className="bg-white rounded-3xl border border-[#F0F0F0] p-5 shadow-sm">
                 <h3 className="text-xs font-black text-[#999] uppercase tracking-wider mb-3">Tags</h3>
                 <div className="flex flex-wrap gap-2">
@@ -509,7 +509,7 @@ export default function RecipeDetailPage() {
                 </div>
               </div>
             )}
-            {recipe.equipment?.length > 0 && (
+            {Array.isArray(recipe.equipment) && recipe.equipment.length > 0 && (
               <div className="bg-white rounded-3xl border border-[#F0F0F0] p-5 shadow-sm">
                 <h3 className="text-xs font-black text-[#999] uppercase tracking-wider mb-3">Equipment</h3>
                 <div className="flex flex-wrap gap-2">
@@ -558,7 +558,7 @@ export default function RecipeDetailPage() {
         <div className="bg-white rounded-3xl border border-[#F0F0F0] p-6 shadow-sm">
           <h2 className="text-lg font-black text-[#2C2C2C] mb-5">📋 Instructions</h2>
 
-          {recipe.instructions &&
+          {Array.isArray(recipe.instructions) &&
           recipe.instructions.filter(
             (s: string) => s.trim().length > 0 && !/^step\s+\d+:?$/i.test(s.trim())
           ).length > 0 ? (
