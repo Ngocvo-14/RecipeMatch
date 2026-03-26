@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import History from '@/models/History';
-import '@/models/Recipe'; // ensure Recipe model is registered for populate
+import Recipe from '@/models/Recipe';
 import { getUserFromRequest } from '@/lib/auth';
 import { getFoodImageUrl } from '@/lib/foodImage';
+import mongoose from 'mongoose';
 
 function sanitizeImageUrl(imageUrl: unknown, title: string, ingredients?: string[]): string {
   const img = typeof imageUrl === 'string' ? imageUrl : '';
@@ -24,26 +25,42 @@ export async function GET(req: NextRequest) {
 
   try {
     await connectDB();
-    const history = await History.find({ userId: user.userId })
-      .populate('recipeId')
+
+    // Step 1: fetch raw history records (recipeId as ObjectId)
+    const historyRaw = await History.find({ userId: user.userId })
       .sort({ viewedAt: -1 })
       .limit(100)
       .lean();
 
-    const enriched = history.map((h) => {
-      const recipe = h.recipeId as Record<string, unknown> | null;
-      if (!recipe) return h;
-      const ingredients = ((recipe.ingredients ?? []) as unknown[]).map((i) =>
-        typeof i === 'string' ? i : ((i as Record<string, string>).name ?? '')
+    if (historyRaw.length === 0) return NextResponse.json({ history: [] });
+
+    // Step 2: explicit recipe lookup — always gets current imageUrl from recipes collection
+    const recipeIds = historyRaw
+      .map((h) => {
+        try { return new mongoose.Types.ObjectId(h.recipeId.toString()); }
+        catch { return null; }
+      })
+      .filter(Boolean) as mongoose.Types.ObjectId[];
+
+    const recipes = await Recipe.find({ _id: { $in: recipeIds } }).lean();
+    const recipeMap = new Map(recipes.map((r) => [r._id.toString(), r]));
+
+    // Step 3: merge history + live recipe data, sanitizing imageUrl
+    const enriched = historyRaw.map((h) => {
+      const recipeDoc = recipeMap.get(h.recipeId?.toString());
+      if (!recipeDoc) return null; // recipe deleted — skip
+      const ingredients = (recipeDoc.ingredients ?? []).map((i) =>
+        typeof i === 'string' ? i : (i as { name?: string }).name ?? ''
       );
       return {
-        ...h,
+        _id: h._id,
+        viewedAt: h.viewedAt,
         recipeId: {
-          ...recipe,
-          imageUrl: sanitizeImageUrl(recipe.imageUrl, recipe.title as string ?? '', ingredients),
+          ...recipeDoc,
+          imageUrl: sanitizeImageUrl(recipeDoc.imageUrl, recipeDoc.title, ingredients),
         },
       };
-    });
+    }).filter(Boolean);
 
     return NextResponse.json({ history: enriched });
   } catch (error) {
