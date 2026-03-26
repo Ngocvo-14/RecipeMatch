@@ -38,8 +38,6 @@ export function getRecipeImage(
   _recipeIndex = 0,
   ingredients?: string[],
 ): string {
-  // Trust any valid http URL directly — don't override stored images
-  if (imageUrl && imageUrl.trim() !== '' && imageUrl.startsWith('http')) return imageUrl;
   if (isValidSourceImage(imageUrl)) return imageUrl!;
   return getFoodImageUrl(title, ingredients);
 }
@@ -50,8 +48,6 @@ export function getRecipeImageLarge(
   _recipeIndex = 0,
   ingredients?: string[],
 ): string {
-  // Trust any valid http URL directly — don't override stored images
-  if (imageUrl && imageUrl.trim() !== '' && imageUrl.startsWith('http')) return imageUrl;
   if (isValidSourceImage(imageUrl)) return imageUrl!;
   return getFoodImageUrl(title, ingredients);
 }

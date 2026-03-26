@@ -241,7 +241,7 @@ function HistRow({ entry, onRemove }: { entry: HistoryEntry; onRemove: () => voi
   return (
     <div className="flex items-center gap-4 bg-white rounded-2xl border border-gray-100 px-4 py-3 hover:shadow-md transition-shadow">
       <Link href={`/recipe/${recipe._id}`} className="shrink-0">
-        <Img src={getRecipeImage(recipe.title)} alt={recipe.title} className="w-16 h-16 rounded-xl" />
+        <Img src={getRecipeImage(recipe.title, recipe.imageUrl)} alt={recipe.title} className="w-16 h-16 rounded-xl" />
       </Link>
       <div className="flex-1 min-w-0">
         <Link href={`/recipe/${recipe._id}`} className="block font-black text-gray-800 text-sm leading-tight line-clamp-1 hover:text-orange-500 transition-colors cursor-pointer">
