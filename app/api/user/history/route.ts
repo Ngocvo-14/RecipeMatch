@@ -6,6 +6,9 @@ import { getUserFromRequest } from '@/lib/auth';
 import { getFoodImageUrl } from '@/lib/foodImage';
 import mongoose from 'mongoose';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 function sanitizeImageUrl(imageUrl: unknown, title: string, ingredients?: string[]): string {
   const img = typeof imageUrl === 'string' ? imageUrl : '';
   const bad = !img || img.trim() === '' ||
