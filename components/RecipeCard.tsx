@@ -41,9 +41,10 @@ export default function RecipeCard({ recipe, recipeIndex = 0, isFavorited = fals
     onToggleFavorite?.(recipe._id);
   }
 
-  // Progress bar calculation
-  const totalIngredients = recipe.matchedIngredients.length + recipe.missingIngredients.length;
-  const matchPct = totalIngredients > 0 ? recipe.matchedIngredients.length / totalIngredients : 1;
+  // Progress bar calculation — include pantry-assumed items (salt/pepper/water) in the total
+  const assumedCount = recipe.assumedIngredients?.length ?? 0;
+  const totalIngredients = recipe.matchedIngredients.length + assumedCount + recipe.missingIngredients.length;
+  const matchPct = totalIngredients > 0 ? (recipe.matchedIngredients.length + assumedCount) / totalIngredients : 1;
   const missingToShow = recipe.missingIngredients.slice(0, 3);
   const missingExtra = recipe.missingIngredients.length - 3;
 
@@ -118,7 +119,7 @@ export default function RecipeCard({ recipe, recipeIndex = 0, isFavorited = fals
           <div className="mb-4">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-gray-500 font-medium">
-                {recipe.matchedIngredients.length}/{totalIngredients} ingredients matched
+                {recipe.matchedIngredients.length + assumedCount}/{totalIngredients} ingredients matched
               </span>
             </div>
             <div className="bg-gray-100 rounded-full h-1.5 w-full">

@@ -255,9 +255,9 @@ export default function RecipeDetailPanel({
             <h3 className="text-xs font-black text-[#2C2C2C] uppercase tracking-wider mb-3">🧂 Ingredients</h3>
             <ul className="space-y-2.5">
               {recipe.ingredients.map((ing, i) => {
-                const has = recipe.matchedIngredients.some(
-                  (m) => m === ing.name || m.includes(ing.name) || ing.name.includes(m)
-                );
+                const key = ing.name.toLowerCase().trim();
+                const has = recipe.matchedIngredients.some((m) => m === key);
+                const assumed = recipe.assumedIngredients?.some((m) => m === key);
                 return (
                   <li key={i} className="flex items-center justify-between gap-3">
                     <span className="text-sm font-semibold text-[#444]">
@@ -266,6 +266,10 @@ export default function RecipeDetailPanel({
                     </span>
                     {has ? (
                       <span className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-black" style={{ background: '#52C9A0' }}>
+                        ✓
+                      </span>
+                    ) : assumed ? (
+                      <span className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[#bbb] text-xs font-black border-2 border-[#E0E0E0]">
                         ✓
                       </span>
                     ) : (

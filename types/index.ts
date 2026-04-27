@@ -44,6 +44,8 @@ export interface MatchedRecipe extends Recipe {
   matchType: 'full' | 'near' | 'low';
   matchedIngredients: string[];
   missingIngredients: string[];
+  /** Pantry basics (salt, pepper, water) silently assumed — not green, not missing */
+  assumedIngredients: string[];
 }
 
 export interface User {
